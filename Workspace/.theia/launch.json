@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "blink",
+            "type": "ccs-debug",
+            "request": "launch",
+            "projectInfo": {
+                "name": "blink",
+                "resourceId": "/blink"
+            }
+        },
+        {
+            "name": "Lab1",
+            "type": "ccs-debug",
+            "request": "launch",
+            "projectInfo": {
+                "name": "Lab1",
+                "resourceId": "/Lab1"
+            }
+        }
+    ]
+}

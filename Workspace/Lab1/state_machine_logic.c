@@ -1,29 +1,38 @@
 #include "state_machine_logic.h"
 #include <ti/devices/msp/msp.h>
 
+#include "initialize_leds.h"
 
-int GetNextState(int current_state)
+#define MAX_MINUTES 60
+
+time_state GetNextState(time_state current_state)
 {
-    if (current_state == OFF) {
-        return ON1; // If the LED is off -> on
+    current_state.seconds++;
+
+    if (current_state.seconds >= 60) {
+        current_state.seconds = 0;
+        current_state.minutes++;
     }
-    else {
-        if (current_state == ON1)
-            return ON2;
-        else
-            return OFF; // If the LED is on -> off
+
+    if (current_state.minutes >= MAX_MINUTES) {
+        current_state.minutes = 0;
     }
+
+    return current_state;
 }
 
-int GetStateOutputGPIOA(int current_state) {
-    if ((current_state == ON1) || (current_state == ON2)) {
-        return 0x00000000;
-    }
-    else {
-        return 0x00000001;
-    }
+int GetStateOutputGPIOA(time_state current_state) {
+    int minLedIndex = current_state.minutes / 5;
+    int secLedIndex = current_state.seconds / 5;
+
+    led minLed = minLeds[minLedIndex];
+    led secLed = secLeds[secLedIndex];
+
+    int result = ~((1 << minLed.gpio) | (1 << secLed.gpio));
+
+    return result;
 }
 
-int GetStateOutputGPIOB(int current_state) {
+int GetStateOutputGPIOB(time_state current_state) {
     return 0;
 };
