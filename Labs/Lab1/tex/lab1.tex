@@ -1,0 +1,28 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath, amssymb, graphicx, float}
+\usepackage[shortlabels]{enumitem}
+\usepackage{geometry}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+\geometry{margin=1in}
+
+\begin{document}
+
+\begin{center}
+\textbf{ELEC 327 Lab \#1} \\[6pt]
+Liam Brady \\
+Due: Saturday 1/24/26
+\end{center}
+
+In my implementation of the clock, the state is implemented using a struct, containing two integers, one for seconds and one for minutes. Below shows how the state machine changes:
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=1.5]{images/bodydiagram.jpg}
+    \caption{State Machine Diagram}
+\end{figure}
+
+To get the GPIO state from this state machine, I use the value for second and minute as an index in an array which defines the GPIO pins of each led. For example, at zero seconds and zero minutes, the function would return a bitmask in which the GPIO pins of the zeroth led (outer led at 12 o'clock), and 12th led (inner led at 12 o'clock) are zero, while all else are one. This leads to only the leds which the state describes being on, while all of the other ones are off. 
+
+
+\end{document}

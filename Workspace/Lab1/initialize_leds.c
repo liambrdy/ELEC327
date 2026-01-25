@@ -4,7 +4,9 @@
 
 #define POWER_STARTUP_DELAY (16)
 
-led minLeds[] = {
+// Define leds by their pin number and GPIO number
+led leds[] = {
+    // Outer
     { 0, 1 }, // 12
     { 26, 59 }, // 1
     { 24, 54 },
@@ -17,9 +19,7 @@ led minLeds[] = {
     { 8, 19 },
     { 6, 11 },
     { 28, 3 }, // 11
-};
-
-led secLeds[] = {
+    // Inner
     { 27, 60 }, // 12
     { 25, 55 }, // 1
     { 23, 53 },
@@ -35,30 +35,22 @@ led secLeds[] = {
 };
 
 void InitializeGPIO() {
+    // Restart and power on GPIOA
     GPIOA->GPRCM.RSTCTL = (GPIO_RSTCTL_KEY_UNLOCK_W | GPIO_RSTCTL_RESETSTKYCLR_CLR | GPIO_RSTCTL_RESETASSERT_ASSERT);
     GPIOA->GPRCM.PWREN = (GPIO_PWREN_KEY_UNLOCK_W | GPIO_PWREN_ENABLE_ENABLE);
-
-    GPIOB->GPRCM.RSTCTL = (GPIO_RSTCTL_KEY_UNLOCK_W | GPIO_RSTCTL_RESETSTKYCLR_CLR | GPIO_RSTCTL_RESETASSERT_ASSERT);
-    GPIOB->GPRCM.PWREN = (GPIO_PWREN_KEY_UNLOCK_W | GPIO_PWREN_ENABLE_ENABLE);
-
+    
     delay_cycles(POWER_STARTUP_DELAY);
 
     uint32_t enabledPins = 0;
 
-    for (int i = 0; i < 12; i++) {
-        led l = minLeds[i];
-        IOMUX->SECCFG.PINCM[(IOMUX_PINCM1 + l.pin - 1)] = (IOMUX_PINCM_PC_CONNECTED | ((uint32_t) 0x00000001));
-        enabledPins |= (1 << l.gpio);
-
-        l = secLeds[i];
-        IOMUX->SECCFG.PINCM[(IOMUX_PINCM1 + l.pin - 1)] = (IOMUX_PINCM_PC_CONNECTED | ((uint32_t) 0x00000001));
-        enabledPins |= (1 << l.gpio);
+    // Loop over every led used by the clock
+    for (int i = 0; i < sizeof(leds) / sizeof(leds[0]); i++) {
+        led l = leds[i];
+        IOMUX->SECCFG.PINCM[(IOMUX_PINCM1 + l.pin - 1)] = (IOMUX_PINCM_PC_CONNECTED | ((uint32_t) 0x00000001)); // Enable the IOMUX for each led
+        enabledPins |= (1 << l.gpio); // Set the bit for each led
     }
 
+    // The use the bit flag to enable and turn off each led (1 turns LED off)
     GPIOA->DOUTSET31_0 = enabledPins;
     GPIOA->DOESET31_0 = enabledPins;
-
-    IOMUX->SECCFG.PINCM[(IOMUX_PINCM43)] = (IOMUX_PINCM_PC_CONNECTED | ((uint32_t) 0x00000001));
-    GPIOB->DOUTSET31_0 = 0x0;
-    GPIOB->DOESET31_0 = 1 << 17;
 }

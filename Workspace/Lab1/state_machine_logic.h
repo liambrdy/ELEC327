@@ -1,6 +1,7 @@
 #ifndef state_machine_logic_include
 #define state_machine_logic_include
 
+// State struct
 typedef struct time_state {
     int seconds;
     int minutes;
