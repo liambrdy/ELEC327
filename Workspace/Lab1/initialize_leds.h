@@ -8,7 +8,6 @@ typedef struct led {
     int pin;
 } led;
 
-extern led minLeds[];
-extern led secLeds[];
+extern led leds[];
 
 #endif /* initialize_leds_include */

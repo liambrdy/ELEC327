@@ -9,27 +9,7 @@
 #include "state_machine_logic.h"
 
 /* This results in approximately 0.5s of delay assuming 32 MHz CPU_CLK */
-#define DELAY (320000)
-
-void delayNs(int ns) {
-    delay_cycles(ns * 0.032);
-}
-
-void sendBit1() {
-    GPIOB->DOUT31_0 = 1 << 17;
-    delayNs(600);
-    GPIOB->DOUT31_0 = 0;
-    delayNs(600);
-}
-
-void sendBit0() {
-    GPIOB->DOUT31_0 = 1 << 17;
-    delayNs(300);
-    GPIOB->DOUT31_0 = 0;
-    delayNs(900);
-}
-
-uint32_t color = 0x00FF00FF;
+#define DELAY (32000000)
 
 int main(void)
 {
@@ -38,23 +18,12 @@ int main(void)
     time_state state = {}; // initialize state machine
 
     // Functional
-    // while (1) {
-    //     GPIOA->DOUT31_0 = GetStateOutputGPIOA(state);
-
-    //     state = GetNextState(state);
-    //     delay_cycles(DELAY);
-    // }
-
     while (1) {
-        for (int i = 0; i < 24; i++) {
-            if ((color >> i) & 0x1) {
-                sendBit1();
-            } else {
-                sendBit0();
-            }
-        }
+        // update GPIO pins and get next state
+        GPIOA->DOUT31_0 = GetStateOutputGPIOA(state); 
 
-        delayNs(80000);
+        state = GetNextState(state);
+        delay_cycles(DELAY);
     }
 }
 
