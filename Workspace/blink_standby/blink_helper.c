@@ -1,68 +1,10 @@
-/*
- * This template file implements a simple GPIO output manipulation using
- * a state machine in an infinite loop.
- */
-
-#include <ti/devices/msp/msp.h>
-#include "delay.h"
-#include "initialize_leds.h"
-#include "state_machine_logic.h"
-
-/* This results in approximately 0.5s of delay assuming 32 MHz CPU_CLK */
-#define DELAY (320000)
-
-void delayNs(int ns) {
-    delay_cycles(ns * 0.032);
-}
-
-void sendBit1() {
-    GPIOB->DOUT31_0 = 1 << 17;
-    delayNs(600);
-    GPIOB->DOUT31_0 = 0;
-    delayNs(600);
-}
-
-void sendBit0() {
-    GPIOB->DOUT31_0 = 1 << 17;
-    delayNs(300);
-    GPIOB->DOUT31_0 = 0;
-    delayNs(900);
-}
-
-uint32_t color = 0x00FF00FF;
-
-int main(void)
-{
-    InitializeGPIO();
-    
-    time_state state = {}; // initialize state machine
-
-    // Functional
-    // while (1) {
-    //     GPIOA->DOUT31_0 = GetStateOutputGPIOA(state);
-
-    //     state = GetNextState(state);
-    //     delay_cycles(DELAY);
-    // }
-
-    while (1) {
-        for (int i = 0; i < 24; i++) {
-            if ((color >> i) & 0x1) {
-                sendBit1();
-            } else {
-                sendBit0();
-            }
-        }
-
-        delayNs(80000);
-    }
-}
 
 /*
- * Copyright (c) 2026, Caleb Kemere
- * Derived from example code which is
  *
- * Copyright (c) 2023, Texas Instruments Incorporated
+ * This code is a reproduction of standard TI code
+
+
+ * Copyright (c) 2020, Texas Instruments Incorporated
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -92,3 +34,32 @@ int main(void)
  * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
+#include "blink_helper.h"
+
+
+void delay_cycles(uint32_t cycles)
+{
+    /* this is a scratch register for the compiler to use */
+    uint32_t scratch;
+
+    /* There will be a 2 cycle delay here to fetch & decode instructions
+     * if branch and linking to this function */
+
+    /* Subtract 2 net cycles for constant offset: +2 cycles for entry jump,
+     * +2 cycles for exit, -1 cycle for a shorter loop cycle on the last loop,
+     * -1 for this instruction */
+
+    __asm volatile(
+#ifdef __GNUC__
+        ".syntax unified\n\t"
+#endif
+        "SUBS %0, %[numCycles], #2; \n"
+        "%=: \n\t"
+        "SUBS %0, %0, #4; \n\t"
+        "NOP; \n\t"
+        "BHS  %=b;" /* branches back to the label defined above if number > 0 */
+        /* Return: 2 cycles */
+        : "=&r"(scratch)
+        : [ numCycles ] "r"(cycles));
+}
