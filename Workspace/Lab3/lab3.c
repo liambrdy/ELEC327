@@ -1,31 +1,45 @@
 /*
- * This template file implements a simple GPIO output manipulation using
- * a state machine in an infinite loop.
+ * This template file implements an interrupt-driven infinite loop which
+ * cycles a state machine.
  */
 
 #include <ti/devices/msp/msp.h>
-#include "delay.h"
-#include "initialize_leds.h"
+#include "hw_interface.h"
 #include "state_machine_logic.h"
-
-/* This results in approximately 0.5s of delay assuming 32 MHz CPU_CLK */
-#define DELAY (32000000)
 
 int main(void)
 {
-    InitializeGPIO();
-    
-    time_state state = {}; // initialize state machine
+    InitializeLEDs();
 
-    // Functional
+    InitializeButton();
+
+    InitializeTimerG0();
+
+    state_t state; // initialize state machine
+    state.hour = 0;
+    state.minute = 0;
+
+    uint32_t input;
+
+    SetTimerG0Delay(32000); // Once per second interrupts
+    EnableTimerG0();
+
     while (1) {
-        // update GPIO pins and get next state
-        GPIOA->DOUT31_0 = GetStateOutputGPIOA(state); 
+        // Need to get input from GPIO here
+        input = GetButtonState();
 
-        state = GetNextState(state);
-        delay_cycles(DELAY);
+        // Read-Modify-Write
+        int current_gpio_state = GPIOA->DOUT31_0;
+        current_gpio_state &= ~(led_mask); // Make the pins that we might want to edit zeros
+        int output = GetStateOutput(state);
+        GPIOA->DOUT31_0 = current_gpio_state + output;
+
+        state = GetNextState(state, input);
+        __WFI(); // Go to sleep until timer counts down again.
     }
+
 }
+
 
 /*
  * Copyright (c) 2026, Caleb Kemere
