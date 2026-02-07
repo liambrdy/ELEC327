@@ -4,18 +4,53 @@
 
 #define POWER_STARTUP_DELAY (16)
 
+// Define leds by their pin number and GPIO number
+led leds[] = {
+    // Outer
+    { 0, 1 }, // 12
+    { 26, 59 }, // 1
+    { 24, 54 },
+    { 22, 47 },
+    { 18, 40 },
+    { 16, 38 },
+    { 14, 36 },
+    { 12, 34 },
+    { 10, 21 },
+    { 8, 19 },
+    { 6, 11 },
+    { 28, 3 }, // 11
+    // Inner
+    { 27, 60 }, // 12
+    { 25, 55 }, // 1
+    { 23, 53 },
+    { 21, 46 },
+    { 17, 39 },
+    { 15, 37 },
+    { 13, 35 },
+    { 11, 22 },
+    { 9, 20 },
+    { 7, 14 },
+    { 5, 10 },
+    { 1, 2 }, // 11
+};
+
 void InitializeGPIO() {
-    // 1. Reset GPIO port (the one(s) for pins that you will use)
+    // Restart and power on GPIOA
     GPIOA->GPRCM.RSTCTL = (GPIO_RSTCTL_KEY_UNLOCK_W | GPIO_RSTCTL_RESETSTKYCLR_CLR | GPIO_RSTCTL_RESETASSERT_ASSERT);
-
-    // 2. Enable power on LED GPIO port
     GPIOA->GPRCM.PWREN = (GPIO_PWREN_KEY_UNLOCK_W | GPIO_PWREN_ENABLE_ENABLE);
+    
+    delay_cycles(POWER_STARTUP_DELAY);
 
-    delay_cycles(POWER_STARTUP_DELAY); // delay to enable GPIO to turn on and reset
+    uint32_t enabledPins = 0;
 
-    /* Code to initialize specific GPIO PIN */
-    // PA0 is red led gpio
-    IOMUX->SECCFG.PINCM[(IOMUX_PINCM1)] = (IOMUX_PINCM_PC_CONNECTED | ((uint32_t) 0x00000001));
-    GPIOA->DOUTSET31_0 = (0x00000000);
-    GPIOA->DOESET31_0 = (0x00000001); // PA0 is our output pin for the Led
+    // Loop over every led used by the clock
+    for (int i = 0; i < sizeof(leds) / sizeof(leds[0]); i++) {
+        led l = leds[i];
+        IOMUX->SECCFG.PINCM[(IOMUX_PINCM1 + l.pin - 1)] = (IOMUX_PINCM_PC_CONNECTED | ((uint32_t) 0x00000001)); // Enable the IOMUX for each led
+        enabledPins |= (1 << l.gpio); // Set the bit for each led
+    }
+
+    // The use the bit flag to enable and turn off each led (1 turns LED off)
+    GPIOA->DOUTSET31_0 = enabledPins;
+    GPIOA->DOESET31_0 = enabledPins;
 }
