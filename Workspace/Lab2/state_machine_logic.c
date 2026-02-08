@@ -3,13 +3,11 @@
 
 #include "initialize_leds.h"
 
-#define PWM_DUTY_CYCLE 25
-
-time_state GetNextState(time_state current_state)
+time_state GetNextState(time_state current_state, int button_down)
 {
     current_state.pwm++;
 
-    if (current_state.pwm % PWM_TO_SECOND == 0) {
+    if (current_state.pwm % PWM_FREQUENCY == 0) {
         current_state.seconds++;
     }
 
@@ -32,7 +30,7 @@ int GetStateOutputGPIOA(time_state current_state) {
     led minLed = leds[current_state.minutes];
     led secLed = leds[current_state.seconds + 12];
 
-    if (current_state.pwm % 100 <= PWM_DUTY_CYCLE) {
+    if (current_state.pwm % 4 == 0) {
         return ~((1 << minLed.gpio) | (1 << secLed.gpio));
     } else {
         return 0xFFFFFFFF;

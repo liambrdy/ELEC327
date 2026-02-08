@@ -35,6 +35,7 @@ pin_config_t minute_leds[12] = {
     { .pin_number = 1,  .iomux = 2  },  // PA1
 };
 
+pin_config_t button = { .pin_number = 8, .iomux = 25 };
 
 void delay_cycles(uint32_t cycles)
 {
@@ -65,14 +66,18 @@ void delay_cycles(uint32_t cycles)
 
 // TODO: Fill in the implementation here!
 void InitializeButton() {
-    
+    GPIOB->GPRCM.RSTCTL = (GPIO_RSTCTL_KEY_UNLOCK_W | GPIO_RSTCTL_RESETSTKYCLR_CLR | GPIO_RSTCTL_RESETASSERT_ASSERT);
+    GPIOB->GPRCM.PWREN = (GPIO_PWREN_KEY_UNLOCK_W | GPIO_PWREN_ENABLE_ENABLE);
+
+    delay_cycles(POWER_STARTUP_DELAY);
+
+    IOMUX->SECCFG.PINCM[button.iomux - 1] = (IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM_PIPU_ENABLE | IOMUX_PINCM_INENA_ENABLE | ((uint32_t) 0x00000001));
 }
 
 // TODO: Fill in the implementation here!
 inline uint32_t GetButtonState() {
-    return 0;
+    return (GPIOB->DIN31_0 >> button.pin_number) & 0x1;
 }
-
 
 void InitializeLEDs() {
     // 1. Reset GPIO port (the one(s) for pins that you will use)

@@ -15,13 +15,11 @@ int main(void)
 
     InitializeTimerG0();
 
-    state_t state; // initialize state machine
-    state.hour = 0;
-    state.minute = 0;
+    time_state state = {}; // initialize state machine
 
     uint32_t input;
 
-    SetTimerG0Delay(32000); // Once per second interrupts
+    SetTimerG0Delay(DELAY);
     EnableTimerG0();
 
     while (1) {
@@ -32,7 +30,8 @@ int main(void)
         int current_gpio_state = GPIOA->DOUT31_0;
         current_gpio_state &= ~(led_mask); // Make the pins that we might want to edit zeros
         int output = GetStateOutput(state);
-        GPIOA->DOUT31_0 = current_gpio_state + output;
+        GPIOA->DOUT31_0 = current_gpio_state | output;
+        // GPIOA->DOUT31_0 = input ? 0xFFFFFFFF : 0x0;
 
         state = GetNextState(state, input);
         __WFI(); // Go to sleep until timer counts down again.

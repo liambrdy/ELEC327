@@ -1,10 +1,8 @@
 #ifndef state_machine_logic_include
 #define state_machine_logic_include
 
-#define PWM_FREQUENCY 10000
+#define PWM_FREQUENCY 1000
 #define DELAY (32000 / PWM_FREQUENCY)
-
-#define PWM_TO_SECOND (32000 / DELAY)
 
 // State struct
 typedef struct time_state {
@@ -13,7 +11,7 @@ typedef struct time_state {
     int pwm;
 } time_state;
 
-time_state GetNextState(time_state current_state);
+time_state GetNextState(time_state current_state, int button_down);
 
 int GetStateOutputGPIOA(time_state current_state);
 

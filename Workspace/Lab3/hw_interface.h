@@ -18,6 +18,7 @@ typedef struct {
 
 extern pin_config_t hour_leds[12];
 extern pin_config_t minute_leds[12];
+extern pin_config_t button;
 
 extern int led_mask; // we'll use this to remember which pins are output
 
