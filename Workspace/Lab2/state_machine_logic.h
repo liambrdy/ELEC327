@@ -1,15 +1,20 @@
 #ifndef state_machine_logic_include
 #define state_machine_logic_include
 
-int GetNextState(int current_state);
+#define PWM_FREQUENCY 1000
+#define DELAY (32000 / PWM_FREQUENCY)
 
-int GetStateOutputGPIOA(int current_state);
+// State struct
+typedef struct time_state {
+    int seconds;
+    int minutes;
+    int pwm;
+} time_state;
 
-int GetStateOutputGPIOB(int current_state);
+time_state GetNextState(time_state current_state, int button_down);
 
-/* Define states as constants */
-#define OFF 0
-#define ON1  1
-#define ON2  2
+int GetStateOutputGPIOA(time_state current_state);
+
+int GetStateOutputGPIOB(time_state current_state);
 
 #endif /* state_machine_logic_include */

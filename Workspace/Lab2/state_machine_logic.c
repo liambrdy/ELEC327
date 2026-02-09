@@ -1,29 +1,44 @@
 #include "state_machine_logic.h"
 #include <ti/devices/msp/msp.h>
 
+#include "initialize_leds.h"
 
-int GetNextState(int current_state)
+time_state GetNextState(time_state current_state, int button_down)
 {
-    if (current_state == OFF) {
-        return ON1; // If the LED is off -> on
+    current_state.pwm++;
+
+    if (current_state.pwm % PWM_FREQUENCY == 0) {
+        current_state.seconds++;
     }
-    else {
-        if (current_state == ON1)
-            return ON2;
-        else
-            return OFF; // If the LED is on -> off
+
+    // If seconds passes 12, reset seconds and increment the outer led.
+    if (current_state.seconds >= 12) {
+        current_state.seconds = 0;
+        current_state.minutes++;
     }
+
+    // If the outer leds has passed 12, reset it.
+    if (current_state.minutes >= 12) {
+        current_state.minutes = 0;
+    }
+
+    return current_state;
 }
 
-int GetStateOutputGPIOA(int current_state) {
-    if ((current_state == ON1) || (current_state == ON2)) {
-        return 0x00000000;
+int GetStateOutputGPIOA(time_state current_state) {
+    // Get the led data for current state
+    led minLed = leds[current_state.minutes];
+    led secLed = leds[current_state.seconds + 12];
+
+    if (current_state.pwm % 4 == 0) {
+        return ~((1 << minLed.gpio) | (1 << secLed.gpio));
+    } else {
+        return 0xFFFFFFFF;
     }
-    else {
-        return 0x00000001;
-    }
+
+    // Return bit flag with only minute and second led set to 0
 }
 
-int GetStateOutputGPIOB(int current_state) {
+int GetStateOutputGPIOB(time_state current_state) {
     return 0;
 };

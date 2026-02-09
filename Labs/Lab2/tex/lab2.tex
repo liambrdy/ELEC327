@@ -1,0 +1,44 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath, amssymb, graphicx, float}
+\usepackage[shortlabels]{enumitem}
+\usepackage{geometry}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+\geometry{margin=1in}
+
+\begin{document}
+
+\begin{center}
+\textbf{ELEC 327 Lab \#2} \\[6pt]
+Liam Brady \\
+Due: Saturday 1/31/26
+\end{center}
+
+\subsection*{Phase 1}
+Using the LED data sheets, I found that the large red LED pulls 6 mA on average, the normal red LED pulls 5 mA, and the yellow LED pulls 3 mA. Then, to find the average current, sum the average current of each led:
+$$\begin{aligned}
+    I_{avg} &= \frac{12}{144}\left( 11I_{red} + I_{RED}= + 12I_{yellow}\right) \\
+    &= 8.08 \text{mA}
+\end{aligned}$$
+
+After running EnergyTrace, I found that the actual mean current was 8.6 mA. This means there was some error, likely from finding the forward current in the leds.
+
+\subsection*{Phase 2}
+Using the dissassembly window, the infinite loop will be in run mode (3.232 mA) for around 60 cycles. Using this, and the fact that in the other cycles before the timer interrupt takes place will all be in standby mode (1.5 $\mu$A), the average current can be calculated:
+$$\begin{aligned}
+    I_{avg} &= 3.232 \cdot\frac{60}{64\times 10^6} + (1.5\times 10^{-3})\cdot\frac{64\times 10^6 - 60}{64\times 10^6} \\
+    &= 1.5 \mu\text{A}
+\end{aligned}$$
+
+After disabling the leds and running EnergyTrace, the software says that there is still around a 15 $\mu$A current pull, meaning this estimation of 1.5 $\mu$A is somewhat off, unless there is some other small current pull on the board when the leds are off.
+
+\subsection*{Phase 3}
+I chose 10 kHz for the PWM frequency, mainly because any lower and there would be a visable flickering, and any higher and it would be too bright, as well as would use more power. To calculate the power used by this new firmware, first calculate the average current: 
+$$\begin{aligned}
+    I_{avg} &= .25 \cdot \frac{12}{144}\left( 11I_{red} + I_{RED} + 12I_{yellow}  \right) \\
+    &= 2.02 \text{mA}
+\end{aligned}$$
+Then, to find the power, multiply by 3.3V, the voltage from the processor. From this, we get an average power of 6.66 mW.
+
+\end{document}
