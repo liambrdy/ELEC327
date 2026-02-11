@@ -1,2 +1,6 @@
 **/Debug/**
 /.metadata/
+
+.theia/
+*.theia-worksace
+.jxbrowser.userdata/

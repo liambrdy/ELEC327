@@ -26,5 +26,11 @@ eagle.epf
 
 *.dri
 *.gpi
+*.zip
 
 .DS_Store
+
+build/
+.theia/
+*.theia-worksace
+.jxbrowser.userdata/

@@ -1,0 +1,396 @@
+# ROM File Format Specification
+
+This document defines the binary **ROM format** used by the `compiler` and executed by the `vm`.
+
+The goal of this format is to provide a simple, deterministic container for:
+- metadata (versioning, flags, entry point)
+- code section(s)
+- optional constant pools / symbol tables
+- optional debug information
+
+This spec is intended to be:
+- easy to parse in C
+- forward-compatible through versioning
+- safe to validate before execution
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [General Conventions](#general-conventions)
+- [File Layout](#file-layout)
+- [Header](#header)
+- [Section Table](#section-table)
+- [Sections](#sections)
+  - [CODE Section](#code-section)
+  - [CONST Section](#const-section)
+  - [SYMBOL Section](#symbol-section)
+  - [DEBUG Section](#debug-section)
+- [Validation Rules](#validation-rules)
+- [Versioning](#versioning)
+- [Example Hex Dump](#example-hex-dump)
+- [Notes](#notes)
+- [Appendix: C Struct Definitions (Reference)](#appendix-c-struct-definitions-reference)
+- [TODO / Future Extensions](#todo--future-extensions)
+
+---
+
+## Overview
+
+A ROM file is a binary blob with the following high-level structure:
+
+1. A fixed-size header
+2. A section table
+3. A set of sections containing code/data
+4. Optional padding/alignment bytes
+
+The VM loads the ROM, validates it, then jumps to the defined entry point.
+
+---
+
+## General Conventions
+
+### Byte Order (Endianness)
+
+All multi-byte integers are stored in:
+
+- **Little-endian** format
+
+### Integer Sizes
+
+| Type     | Size |
+|----------|------|
+| `u8`     | 1    |
+| `u16`    | 2    |
+| `u32`    | 4    |
+| `u64`    | 8    |
+
+### Alignment
+
+Unless otherwise stated:
+- sections begin on a **16-byte aligned offset**
+- padding bytes are `0x00`
+
+### Strings
+
+Strings are stored as:
+- **UTF-8**
+- not null-terminated unless explicitly specified
+
+---
+
+## File Layout
+
+The ROM file is laid out like this:
+
++----------------------------+
+| Header                     |
+| (fixed size)               |
++----------------------------+
+| Section Table              |
+| (N entries)                |
++----------------------------+
+| Section Data               |
+| (CODE / CONST / etc.)      |
++----------------------------+
+| Optional padding           |
++----------------------------+
+
+
+---
+
+## Header
+
+The header is a fixed-size structure at the beginning of the file.
+
+### Header Structure
+
+| Offset | Size | Field Name        | Type  | Description |
+|--------|------|-------------------|-------|-------------|
+| 0x00   | 4    | magic             | u8[4] | Magic bytes identifying this ROM format |
+| 0x04   | 2    | version_major     | u16   | Major version |
+| 0x06   | 2    | version_minor     | u16   | Minor version |
+| 0x08   | 4    | flags             | u32   | Format flags |
+| 0x0C   | 4    | entry_point       | u32   | Entry point address or offset |
+| 0x10   | 4    | section_count     | u32   | Number of sections |
+| 0x14   | 4    | section_table_off | u32   | File offset of the section table |
+| 0x18   | 4    | rom_size          | u32   | Total ROM file size in bytes |
+| 0x1C   | 4    | checksum          | u32   | Optional checksum field |
+| 0x20   | 32   | reserved          | u8[32]| Reserved for future use |
+
+### Magic Bytes
+
+The first 4 bytes must equal:
+
+52 4F 4D 21
+
+
+ASCII representation:
+
+ROM!
+
+
+---
+
+## Section Table
+
+The section table contains one entry per section in the ROM.
+
+### Section Table Entry Layout
+
+| Offset | Size | Field Name   | Type  | Description |
+|--------|------|--------------|-------|-------------|
+| 0x00   | 4    | type         | u32   | Section type identifier |
+| 0x04   | 4    | flags        | u32   | Section-specific flags |
+| 0x08   | 4    | file_offset  | u32   | Offset of the section payload |
+| 0x0C   | 4    | file_size    | u32   | Size of the section payload |
+| 0x10   | 4    | mem_address  | u32   | Address to load at (optional) |
+| 0x14   | 4    | mem_size     | u32   | Size in memory (optional) |
+| 0x18   | 8    | reserved     | u8[8] | Reserved |
+
+Total size per entry: **32 bytes**
+
+---
+
+## Sections
+
+Sections contain the actual executable code and data.
+
+Each section is identified by its `type` field in the section table.
+
+### Known Section Types
+
+| Name   | Type ID (u32) | Description |
+|--------|--------------:|-------------|
+| CODE   | `0x00000001`  | Bytecode instructions |
+| CONST  | `0x00000002`  | Constant pool |
+| SYMBOL | `0x00000003`  | Symbol table / exported identifiers |
+| DEBUG  | `0x00000004`  | Debug metadata |
+
+---
+
+## CODE Section
+
+The CODE section contains VM instructions.
+
+### Layout
+
++----------------------------+
+| Code Header |
++----------------------------+
+| Instruction Stream |
++----------------------------+
+
+
+### Code Header Fields
+
+| Offset | Size | Field Name        | Type | Description |
+|--------|------|-------------------|------|-------------|
+| 0x00   | 4    | instruction_count | u32  | Number of instructions |
+| 0x04   | 4    | code_flags        | u32  | Flags controlling execution |
+| 0x08   | 8    | reserved          | u8[8]| Reserved |
+
+### Instruction Encoding
+
+Instruction encoding is VM-specific and may change between versions.
+
+A typical encoding might look like:
+
+| Bytes | Meaning |
+|-------|---------|
+| 1     | opcode  |
+| 1     | operand count |
+| N     | operands |
+
+---
+
+## CONST Section
+
+The CONST section contains constants such as integers, floats, and strings.
+
+### Layout
+
++----------------------------+
+| Constant Count (u32) |
++----------------------------+
+| Constant Entries... |
++----------------------------+
+
+
+### Constant Entry Layout (Example)
+
+| Field Name | Type | Description |
+|-----------|------|-------------|
+| type_tag  | u8   | Constant type |
+| size      | u32  | Payload size |
+| payload   | u8[] | Raw bytes |
+
+Example type tags:
+
+| Tag  | Meaning |
+|------|---------|
+| 0x01 | Integer |
+| 0x02 | Float |
+| 0x03 | String |
+| 0x04 | Blob |
+
+---
+
+## SYMBOL Section
+
+The SYMBOL section provides human-readable names for addresses or constants.
+
+This section is optional but useful for:
+- debugging
+- linking
+- stack traces
+
+### Layout (Example)
+
++----------------------------+
+| Symbol Count (u32) |
++----------------------------+
+| Symbol Entries... |
++----------------------------+
+
+
+### Symbol Entry (Example)
+
+| Field Name | Type | Description |
+|-----------|------|-------------|
+| name_len  | u16  | Length of symbol name |
+| name      | u8[] | UTF-8 name bytes |
+| address   | u32  | Code address or offset |
+| kind      | u8   | Function/global/label/etc |
+
+---
+
+## DEBUG Section
+
+The DEBUG section may contain:
+- source file names
+- line mappings
+- function boundaries
+- compiler metadata
+
+This section should not be required for execution.
+
+### Example Layout
+
++----------------------------+
+| Debug Record Count (u32) |
++----------------------------+
+| Debug Records... |
++----------------------------+
+
+
+Debug records are intentionally flexible and may vary between versions.
+
+---
+
+## Validation Rules
+
+Before executing a ROM file, the VM must validate:
+
+### Required Checks
+
+- magic bytes match `ROM!`
+- version is supported
+- `rom_size` matches actual file size
+- section table offset is within file bounds
+- section table does not overlap invalid memory
+- all sections are within file bounds
+- `entry_point` points into a valid executable region
+- section sizes are non-zero (unless explicitly allowed)
+
+### Optional Checks
+
+- checksum validation
+- alignment validation
+- section ordering validation
+
+---
+
+## Versioning
+
+### Version Compatibility Rules
+
+- **Major version mismatch**: reject ROM
+- **Minor version mismatch**: accept if backward compatible
+
+Example:
+
+| VM Version | ROM Version | Valid? |
+|------------|------------|--------|
+| 1.0        | 1.0        | ✅ |
+| 1.2        | 1.0        | ✅ |
+| 1.0        | 1.2        | ❌ (ROM too new) |
+| 2.0        | 1.9        | ❌ (major mismatch) |
+
+---
+
+## Example Hex Dump
+
+Example ROM start (header only):
+
+00000000: 52 4F 4D 21 01 00 00 00 00 00 00 00 20 00 00 00
+00000010: 02 00 00 00 40 00 00 00 A0 00 00 00 00 00 00 00
+00000020: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+
+
+Meaning:
+- `ROM!` magic
+- version `1.0`
+- 2 sections
+- section table starts at offset `0x40`
+- total file size `0xA0`
+
+---
+
+## Notes
+
+### Design Goals
+
+- small parsing overhead
+- safe bounds-checking
+- easy extension through reserved fields
+- supports optional debug metadata
+
+### Reserved Fields
+
+All reserved bytes **must be written as `0x00`**.
+
+Future versions may assign meaning to reserved fields.
+
+---
+
+## Appendix: C Struct Definitions (Reference)
+
+These structs may be used as a reference implementation.
+
+> NOTE: These definitions assume packed structs and little-endian host.
+
+```c
+typedef struct {
+    uint8_t  magic[4];            // "ROM!"
+    uint16_t version_major;
+    uint16_t version_minor;
+    uint32_t flags;
+    uint32_t entry_point;
+    uint32_t section_count;
+    uint32_t section_table_off;
+    uint32_t rom_size;
+    uint32_t checksum;
+    uint8_t  reserved[32];
+} rom_header_t;
+
+typedef struct {
+    uint32_t type;
+    uint32_t flags;
+    uint32_t file_offset;
+    uint32_t file_size;
+    uint32_t mem_address;
+    uint32_t mem_size;
+    uint8_t  reserved[8];
+} rom_section_entry_t;
