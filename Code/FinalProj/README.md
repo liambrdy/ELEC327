@@ -5,6 +5,7 @@ This document defines the binary **ROM format** used by the `compiler` and execu
 The goal of this format is to provide a simple, deterministic container for:
 - metadata (versioning, flags, entry point)
 - code section(s)
+- sprite section(s)
 - optional constant pools / symbol tables
 - optional debug information
 
@@ -24,6 +25,7 @@ This spec is intended to be:
 - [Section Table](#section-table)
 - [Sections](#sections)
   - [CODE Section](#code-section)
+  - [SPRITE Section](#sprite-section)
   - [CONST Section](#const-section)
   - [SYMBOL Section](#symbol-section)
   - [DEBUG Section](#debug-section)
@@ -32,7 +34,6 @@ This spec is intended to be:
 - [Example Hex Dump](#example-hex-dump)
 - [Notes](#notes)
 - [Appendix: C Struct Definitions (Reference)](#appendix-c-struct-definitions-reference)
-- [TODO / Future Extensions](#todo--future-extensions)
 
 ---
 
@@ -123,12 +124,7 @@ The header is a fixed-size structure at the beginning of the file.
 
 The first 4 bytes must equal:
 
-52 4F 4D 21
-
-
-ASCII representation:
-
-ROM!
+- 52 4F 4D 21
 
 
 ---
@@ -173,14 +169,6 @@ Each section is identified by its `type` field in the section table.
 ## CODE Section
 
 The CODE section contains VM instructions.
-
-### Layout
-
-+----------------------------+
-| Code Header |
-+----------------------------+
-| Instruction Stream |
-+----------------------------+
 
 
 ### Code Header Fields
@@ -309,42 +297,6 @@ Before executing a ROM file, the VM must validate:
 - checksum validation
 - alignment validation
 - section ordering validation
-
----
-
-## Versioning
-
-### Version Compatibility Rules
-
-- **Major version mismatch**: reject ROM
-- **Minor version mismatch**: accept if backward compatible
-
-Example:
-
-| VM Version | ROM Version | Valid? |
-|------------|------------|--------|
-| 1.0        | 1.0        | ✅ |
-| 1.2        | 1.0        | ✅ |
-| 1.0        | 1.2        | ❌ (ROM too new) |
-| 2.0        | 1.9        | ❌ (major mismatch) |
-
----
-
-## Example Hex Dump
-
-Example ROM start (header only):
-
-00000000: 52 4F 4D 21 01 00 00 00 00 00 00 00 20 00 00 00
-00000010: 02 00 00 00 40 00 00 00 A0 00 00 00 00 00 00 00
-00000020: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-
-
-Meaning:
-- `ROM!` magic
-- version `1.0`
-- 2 sections
-- section table starts at offset `0x40`
-- total file size `0xA0`
 
 ---
 

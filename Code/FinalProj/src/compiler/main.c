@@ -2,6 +2,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include "lexer.h"
+#include "darray.h"
+#include "ast.h"
+
 void usage(const char *exe) {
     printf("Usage: %s in_file [-o out_file] \n", exe);
 }
@@ -69,6 +73,18 @@ int main(int argc, char **argv) {
     buffer[fileLength] = '\0';
 
     fclose(f);
+
+    token_t *tokens = tokenize(buffer, fileLength + 1);
+    if (!tokens) {
+        return 1;
+    }
+
+    PrintTokens(tokens);
+
+    ast_node_t *ast = AstFromTokens(tokens);
+    if (!ast) {
+        return 1;
+    }
 
     free(buffer);
 

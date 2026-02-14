@@ -1,3 +1,9 @@
-2 + 2
-4 / 1
-16 - 2
+let a=12;
+
+func add(a, b) {
+    return a + b;
+}
+
+if (c >= 32) {
+    print(c);
+}
