@@ -1,0 +1,136 @@
+# Language Grammar Specification
+
+This document defines the grammar of the language used by this project.
+
+## Expression Grammar
+
+```bnf
+primary-expression ::=
+      identifier
+    | constant
+    | string-literal
+    | "(" expression ")"
+
+postfix-expression ::=
+      primary-expression
+    | postfix-expression "[" expression "]"
+    | postfix-expression "(" argument-expression-list ")"
+    | postfix-expression "." identifier
+    | postfix-expression "->" identifier
+    | postfix-expression "++"
+    | postfix-expression "--"
+
+argument-expression-list ::=
+      assignment-expression
+    | argument-expression-list "," assignment-expression
+
+
+unary-expression ::=
+      postfix-expression
+    | "++" unary-expression
+    | "--" unary-expression
+    | unary-operator cast-expression
+
+unary-operator ::=
+      "&"
+    | "*"
+    | "+"
+    | "-"
+    | "~"
+    | "!"
+
+
+cast-expression ::=
+      unary-expression
+    | "(" type-name ")" cast-expression
+
+
+multiplicative-expression ::=
+      cast-expression
+    | multiplicative-expression "*" cast-expression
+    | multiplicative-expression "/" cast-expression
+    | multiplicative-expression "%" cast-expression
+
+
+additive-expression ::=
+      multiplicative-expression
+    | additive-expression "+" multiplicative-expression
+    | additive-expression "-" multiplicative-expression
+
+
+shift-expression ::=
+      additive-expression
+    | shift-expression "<<" additive-expression
+    | shift-expression ">>" additive-expression
+
+
+relational-expression ::=
+      shift-expression
+    | relational-expression "<" shift-expression
+    | relational-expression ">" shift-expression
+    | relational-expression "<=" shift-expression
+    | relational-expression ">=" shift-expression
+
+
+equality-expression ::=
+      relational-expression
+    | equality-expression "==" relational-expression
+    | equality-expression "!=" relational-expression
+
+
+and-expression ::=
+      equality-expression
+    | and-expression "&" equality-expression
+
+
+exclusive-or-expression ::=
+      and-expression
+    | exclusive-or-expression "^" and-expression
+
+
+inclusive-or-expression ::=
+      exclusive-or-expression
+    | inclusive-or-expression "|" exclusive-or-expression
+
+
+logical-and-expression ::=
+      inclusive-or-expression
+    | logical-and-expression "&&" inclusive-or-expression
+
+
+logical-or-expression ::=
+      logical-and-expression
+    | logical-or-expression "||" logical-and-expression
+
+
+conditional-expression ::=
+      logical-or-expression
+    | logical-or-expression "?" expression ":" conditional-expression
+
+
+assignment-expression ::=
+      conditional-expression
+    | unary-expression assignment-operator assignment-expression
+
+
+assignment-operator ::=
+      "="
+    | "*="
+    | "/="
+    | "%="
+    | "+="
+    | "-="
+    | "<<="
+    | ">>="
+    | "&="
+    | "^="
+    | "|="
+
+
+expression ::=
+      assignment-expression
+    <!-- | expression "," assignment-expression -->
+
+
+constant-expression ::=
+    conditional-expression

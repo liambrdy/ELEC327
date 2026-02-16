@@ -5,9 +5,24 @@
 #include "lexer.h"
 
 typedef enum ast_binary_op {
-    BINARY_OP_ADDITION,
-    BINARY_OP_SUBTRACTION,
+    BINARY_OP_ADD,
+    BINARY_OP_SUB,
+    BINARY_OP_LOGIC_OR,
+    BINARY_OP_LOGIC_AND,
+    BINARY_OP_OR,
+    BINARY_OP_AND,
+    BINARY_OP_XOR,
+    BINARY_OP_EQUIV,
+    BINARY_OP_NOT_EQUIV,
 } ast_binary_op;
+
+typedef enum ast_assignment_op {
+    ASSIGN,
+    ASSIGN_ADD,
+    ASSIGN_SUB,
+    ASSIGN_MUL,
+    ASSIGN_DIV,
+} ast_assignment_op;
 
 typedef enum ast_unary_op {
     UNARY_OP_NEGATE,
@@ -23,10 +38,12 @@ typedef enum ast_node_type {
     AST_RETURN,
     AST_IF,
     AST_WHILE,
-
+    
+    AST_TERNARY_EXPR,
     AST_BINARY_EXPR,
-    AST_ASSIGN_EXPR,
     AST_UNARY_EXPR,
+    AST_ASSIGN_EXPR,
+
     AST_LITERAL_INT,
     AST_LITERAL_STRING,
     AST_IDENTIFIER,
@@ -73,10 +90,22 @@ typedef struct ast_node_t {
         } while_stmt;
 
         struct {
+            ast_node_t *condition;
+            ast_node_t *then_expr;
+            ast_node_t *else_expr;
+        } ternary_expr;
+
+        struct {
             ast_binary_op op;
             ast_node_t *left;
             ast_node_t *right;
         } binary_op;
+
+        struct {
+            ast_assignment_op op;
+            ast_node_t *left;
+            ast_node_t *right;
+        } assign_op;
 
         struct {
             ast_unary_op op;

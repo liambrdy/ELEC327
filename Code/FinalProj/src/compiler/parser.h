@@ -19,11 +19,10 @@ bool AtEnd(parser_t *p);
 
 bool Match(parser_t *p, token_type type);
 bool MatchKeyword(parser_t *p, token_keyword_type type);
-bool MatchOperator(parser_t *p, token_operator_type type);
 bool MatchPunctuation(parser_t *p, token_punctuation_type type);
 
+token_t *Expect(parser_t *p, token_type type, const char *error_msg);
 token_t *ExpectKeyword(parser_t *p, token_keyword_type type, const char *error_msg);
-token_t *ExpectOperator(parser_t *p, token_operator_type type, const char *error_msg);
 token_t *ExpectPunctuation(parser_t *p, token_punctuation_type type, const char *error_msg);
 
 
