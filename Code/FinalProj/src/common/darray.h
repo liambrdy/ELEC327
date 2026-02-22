@@ -38,8 +38,7 @@ void *_DArrayInsertAt(void *array, u64 index, void *valuePtr);
 
 #define DArrayPush(array, value)           \
     {                                      \
-        typeof(value) temp = value;        \
-        array = _DArrayPush(array, &temp); \
+        array = _DArrayPush(array, &value); \
     }
 
 #define DArrayPop(array, dest) \
@@ -47,8 +46,7 @@ void *_DArrayInsertAt(void *array, u64 index, void *valuePtr);
 
 #define DArrayInsertAt(array, index, value) \
     {\
-        typeof(value) temp = value; \
-        array = _DArrayInsertAt(array, index, &temp); \
+        array = _DArrayInsertAt(array, index, &value); \
     }
 
 #define DArrayPopAt(array, index, dest) \

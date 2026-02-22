@@ -47,16 +47,18 @@ lookup_map_t punctuations[] = {
     {";", PUNCTUATION_SEMICOLON},
     {":", PUNCTUATION_COLON},
     {"?", PUNCTUATION_QUESTION_MARK},
+    {".", PUNCTUATION_PERIOD},
 
     {"+", PUNCTUATION_PLUS},
     {"-", PUNCTUATION_MINUS},
     {"*", PUNCTUATION_MULT},
     {"/", PUNCTUATION_DIV},
+    {"%", PUNCTUATION_MOD},
 
     {"=", PUNCTUATION_EQUALS},
     {"+=", PUNCTUATION_PLUS_EQUALS},
     {"-=", PUNCTUATION_MINUS_EQUALS},
-    {"*=", PUNCTUATION_TIMES_EQUALS},
+    {"*=", PUNCTUATION_MULT_EQUALS},
     {"/=", PUNCTUATION_DIV_EQUALS},
 
     {"<", PUNCTUATION_LT},
@@ -67,9 +69,13 @@ lookup_map_t punctuations[] = {
     {"!=", PUNCTUATION_NOT_EQUIV},
     {"||", PUNCTUATION_LOGIC_OR},
     {"&&", PUNCTUATION_LOGIC_AND},
+    {"!", PUNCTUATION_LOGIC_NOT},
     {"|", PUNCTUATION_OR},
     {"&", PUNCTUATION_AND},
     {"^", PUNCTUATION_CARROT},
+    {"~", PUNCTUATION_NOT},
+    {"<<", PUNCTUATION_SHL},
+    {">>", PUNCTUATION_SHR},
 
     {"++", PUNCTUATION_INCREMENT},
     {"--", PUNCTUATION_DECREMENT},
@@ -105,6 +111,8 @@ void InsertNode(trie_node_t *node, u8 *str, token_punctuation_type type) {
     for (int i = 0; i < strlen(str); i++) {
         if (!current->children[str[i]]) {
             trie_node_t *newNode = (trie_node_t *)malloc(sizeof(trie_node_t));
+            memset(newNode, 0, sizeof(trie_node_t));
+
             newNode->type = PUNCTUATION_COUNT;
 
             current->children[str[i]] = newNode;
@@ -251,6 +259,7 @@ token_t *tokenize(u8 *buffer, int bufferSize) {
         }
     }
 
+    printf("Unrechable\n");
     return 0;
 }
 
