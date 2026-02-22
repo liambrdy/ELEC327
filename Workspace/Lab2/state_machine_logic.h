@@ -11,7 +11,7 @@ typedef struct time_state {
     int pwm;
 } time_state;
 
-time_state GetNextState(time_state current_state, int button_down);
+time_state GetNextState(time_state current_state);
 
 int GetStateOutputGPIOA(time_state current_state);
 
