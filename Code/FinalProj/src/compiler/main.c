@@ -69,12 +69,12 @@ int main(int argc, char **argv) {
     rewind(f);
 
     uint8_t *buffer = (uint8_t *)malloc(fileLength + 1);
-    fread(buffer, 1, fileLength, f);
-    buffer[fileLength] = '\0';
+    size_t bytesRead = fread(buffer, 1, fileLength, f);
+    buffer[bytesRead] = '\0';
 
     fclose(f);
 
-    token_t *tokens = tokenize(buffer, fileLength + 1);
+    token_t *tokens = tokenize(buffer, bytesRead + 1);
     if (!tokens) {
         return 1;
     }

@@ -134,3 +134,167 @@ expression ::=
 
 constant-expression ::=
     conditional-expression
+```
+
+## Declaration Grammar
+```bnp
+declaration ::=
+    declaration-specifiers [ init-declarator-list ] ";"
+
+declaration-specifiers ::=
+    storage-class-specifier [ declaration-specifiers ]
+  | type-specifier [ declaration-specifiers ]
+  | type-qualifier [ declaration-specifiers ]
+  | function-specifier [ declaration-specifiers ]
+
+init-declarator-list ::=
+    init-declarator
+  | init-declarator-list "," init-declarator
+
+init-declarator ::=
+    declarator
+  | declarator "=" initializer
+
+storage-class-specifier ::=
+    auto
+  | extern
+  | register
+  | static
+  | typedef
+
+type-specifier ::=
+    void
+  | char
+  | short
+  | int
+  | int8
+  | int16
+  | int32
+  | int64
+  | long
+  | float
+  | double
+  | signed
+  | unsigned
+  | struct-or-union-specifier
+  | enum-specifier
+  | typedef-name
+
+struct-or-union-specifier ::=
+    struct-or-union [ identifier ] "{" struct-declaration-list "}"
+  | struct-or-union identifier
+
+struct-or-union ::=
+    struct
+  | union
+
+struct-declaration-list ::=
+    struct-declaration
+  | struct-declaration-list struct-declaration
+
+struct-declaration ::=
+    specifier-qualifier-list [ struct-declarator-list ] ";"
+
+specifier-qualifier-list ::=
+    type-specifier [ specifier-qualifier-list ]
+  | type-qualifier [ specifier-qualifier-list ]
+
+struct-declarator-list ::=
+    struct-declarator
+  | struct-declarator-list "," struct-declarator
+
+struct-declarator ::=
+    declarator
+  | [ declarator ] ":" constant-expression
+
+enum-specifier ::=
+    enum [ identifier ] "{" enumerator-list "}"
+  | enum [ identifier ] "{" enumerator-list "," "}"
+  | enum identifier
+
+enumerator-list ::=
+    enumerator
+  | enumerator-list "," enumerator
+
+enumerator ::=
+    enumeration-constant
+  | enumeration-constant "=" constant-expression
+
+type-qualifier ::=
+    const
+  | restrict
+  | volatile
+
+function-specifier ::=
+    inline
+
+declarator ::=
+    [ pointer ] direct-declarator
+
+direct-declarator ::=
+    identifier
+  | "(" declarator ")"
+  | direct-declarator "[" [ type-qualifier-list ] [ assignment-expression ] "]"
+  | direct-declarator "[" static [ type-qualifier-list ] assignment-expression "]"
+  | direct-declarator "[" type-qualifier-list static assignment-expression "]"
+  | direct-declarator "[" [ type-qualifier-list ] "*" "]"
+  | direct-declarator "(" parameter-type-list ")"
+
+pointer ::=
+    "*" [ type-qualifier-list ]
+  | "*" [ type-qualifier-list ] pointer
+
+type-qualifier-list ::=
+    type-qualifier
+  | type-qualifier-list type-qualifier
+
+parameter-type-list ::=
+    parameter-list
+  | parameter-list "," "..."
+
+parameter-list ::=
+    parameter-declaration
+  | parameter-list "," parameter-declaration
+
+parameter-declaration ::=
+    declaration-specifiers declarator
+  | declaration-specifiers [ abstract-declarator ]
+
+type-name ::=
+    specifier-qualifier-list [ abstract-declarator ]
+
+abstract-declarator ::=
+    pointer
+  | [ pointer ] direct-abstract-declarator
+
+direct-abstract-declarator ::=
+    "(" abstract-declarator ")"
+  | direct-abstract-declarator "[" [ type-qualifier-list ] [ assignment-expression ] "]"
+  | direct-abstract-declarator "[" static [ type-qualifier-list ] assignment-expression "]"
+  | direct-abstract-declarator "[" type-qualifier-list static assignment-expression "]"
+  | direct-abstract-declarator "[" [ type-qualifier-list ] "*" "]"
+  | [ direct-abstract-declarator ] "(" [ parameter-type-list ] ")"
+
+typedef-name ::=
+    identifier
+
+initializer ::=
+    assignment-expression
+  | "{" initializer-list "}"
+  | "{" initializer-list "," "}"
+
+initializer-list ::=
+    [ designation ] initializer
+  | initializer-list "," [ designation ] initializer
+
+designation ::=
+    designator-list "="
+
+designator-list ::=
+    designator
+  | designator-list designator
+
+designator ::=
+    "[" constant-expression "]"
+  | "." identifier
+```

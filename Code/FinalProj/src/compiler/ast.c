@@ -16,7 +16,9 @@ ast_node_t *GetNewNode(ast_node_type type) {
     return node;
 }
 
+// Expression Parsing
 static ast_node_t *ParseExpression(parser_t *p);
+static ast_node_t *ParseAssignmentExpression(parser_t *p);
 
 typedef ast_node_t *(*parse_fn_t)(parser_t *);
 typedef bool (*punct_to_op_fn_t)(token_punctuation_type, ast_binary_op *);
@@ -103,6 +105,20 @@ ast_node_t *ParsePostfixExpression(parser_t *p) {
                 ast_node_t *new = GetNewNode(AST_INDEX);
                 new->index.array = primaryExpr;
                 new->index.index = inExpr;
+
+                primaryExpr = new;
+            } break;
+
+            case PUNCTAUTION_OPEN_PAREN: {
+                Advance(p);
+
+                ast_node_t *new = GetNewNode(AST_FUNC_CALL);
+                new->func_call.fun = primaryExpr;
+                new->func_call.params = DArrayCreate(ast_node_t *);
+                while (!MatchPunctuation(p, PUNCTUATION_CLOSE_PAREN)) {
+                    ast_node_t *param = ParseAssignmentExpression(p);
+                    DArrayPush(new->func_call.params, param);
+                }
 
                 primaryExpr = new;
             } break;
@@ -277,32 +293,33 @@ ast_node_t *ParseVariableDeclaration(parser_t *p) {
         init = ParseConstantExpression(p);
     }
 
-    ast_node_t *node = GetNewNode(AST_VAR_DECL);
-    node->var_decl.name = name->lexeme;
-    node->var_decl.value = init;
+    ast_node_t *node = GetNewNode(AST_DECL);
+    node->decl.name = name->lexeme;
+    node->decl.value = init;
 
     return node;
 }
 
 ast_node_t *ParseFunction(parser_t *p) {
+    return NULL;
+}
+
+ast_node_t *ParseDeclarationSpecifiers(parser_t *p) {
+
+}
+
+ast_node_t *ParseInitDeclaratorList(parser_t *p) {
 
 }
 
 ast_node_t *ParseDeclaration(parser_t *p) {
-    if (MatchKeyword(p, KEYWORD_LET)) {
-        ast_node_t *decl = ParseVariableDeclaration(p);
+    ast_node_t *declSpecifiers = ParseDeclarationSpecifiers(p);
 
-        ExpectPunctuation(p, PUNCTUATION_SEMICOLON, "expects semicolon after declaration");
-
-        return decl;
+    if (!MatchPunctuation(p, PUNCTUATION_SEMICOLON)) {
+        ast_node_t *init = ParseInitDeclaratorList(p);
     }
 
-    if (MatchKeyword(p, KEYWORD_FUNC)) {
-        return ParseFunction(p);
-    }
-
-    printf("Expected function or global variable declaration\n");
-    return NULL;
+    
 }
 
 ast_node_t *AstFromTokens(token_t *tokens) {
@@ -343,18 +360,29 @@ void PrintAst(ast_node_t *parent) {
             printf("]\n");
         } break;
 
-        case AST_FUNCTION: {
-
-        } break;
-
         case AST_BLOCK: {
 
         } break;
 
-        case AST_VAR_DECL: {
-            printf("VarDecl(%s = ", parent->var_decl.name);
-            PrintAst(parent->var_decl.value);
+        case AST_DECL: {
+            printf("VarDecl(%s = ", parent->decl.name);
+            PrintAst(parent->decl.value);
             printf(")");
+        } break;
+
+        case AST_FUNC_CALL: {
+            printf("FunCall(");
+            PrintAst(parent->func_call.fun);
+            printf("\tparams = [");
+
+            i32 paramCount = DArrayLength(parent->func_call.params);
+            for (int i = 0; i < paramCount; i++) {
+                PrintAst(parent->func_call.params[i]);
+                if (i < paramCount - 1) {
+                    printf(", ");
+                }
+            }
+            printf("])");
         } break;
 
         case AST_RETURN: {
