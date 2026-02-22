@@ -10,7 +10,6 @@
 
 typedef struct lookup_result_t {
     union {
-        token_operator_type opType;
         token_literal_type litType;
         token_punctuation_type puncType;
         token_keyword_type keywordType;
@@ -24,7 +23,6 @@ typedef struct lookup_result_t {
 typedef struct lookup_map_t {
     u8 *str;
     union {
-        token_operator_type opType;
         token_literal_type litType;
         token_punctuation_type puncType;
         token_keyword_type keywordType;
@@ -38,13 +36,49 @@ lookup_map_t keywords[] = {
     {"let", KEYWORD_LET},
 };
 
-lookup_map_t twoOperators[] = {
-    {"<=", OPERATOR_LESS_THAN},
-    {">=", OPERATOR_GREATER_THAN},
-    {"==", OPERATOR_EQUIV},
-    {"!=", OPERATOR_NOT_EQUIV},
-    {"++", OPERATOR_INCREMENT},
-    {"--", OPERATOR_DECREMENT},
+lookup_map_t punctuations[] = {
+    {",", PUNCTUATION_COMMA},
+    {"(", PUNCTAUTION_OPEN_PAREN},
+    {")", PUNCTUATION_CLOSE_PAREN},
+    {"[", PUNCTUATION_OPEN_BRACK},
+    {"]", PUNCTUATION_CLOSE_BRACK},
+    {"{", PUNCTUATION_OPEN_CURLY},
+    {"}", PUNCTUATION_CLOSE_CURLY},
+    {";", PUNCTUATION_SEMICOLON},
+    {":", PUNCTUATION_COLON},
+    {"?", PUNCTUATION_QUESTION_MARK},
+    {".", PUNCTUATION_PERIOD},
+
+    {"+", PUNCTUATION_PLUS},
+    {"-", PUNCTUATION_MINUS},
+    {"*", PUNCTUATION_MULT},
+    {"/", PUNCTUATION_DIV},
+    {"%", PUNCTUATION_MOD},
+
+    {"=", PUNCTUATION_EQUALS},
+    {"+=", PUNCTUATION_PLUS_EQUALS},
+    {"-=", PUNCTUATION_MINUS_EQUALS},
+    {"*=", PUNCTUATION_MULT_EQUALS},
+    {"/=", PUNCTUATION_DIV_EQUALS},
+
+    {"<", PUNCTUATION_LT},
+    {">", PUNCTUATION_GT},
+    {"<=", PUNCTUATION_LT_EQ},
+    {">=", PUNCTUATION_GT_EQ},
+    {"==", PUNCTUATION_EQUIV},
+    {"!=", PUNCTUATION_NOT_EQUIV},
+    {"||", PUNCTUATION_LOGIC_OR},
+    {"&&", PUNCTUATION_LOGIC_AND},
+    {"!", PUNCTUATION_LOGIC_NOT},
+    {"|", PUNCTUATION_OR},
+    {"&", PUNCTUATION_AND},
+    {"^", PUNCTUATION_CARROT},
+    {"~", PUNCTUATION_NOT},
+    {"<<", PUNCTUATION_SHL},
+    {">>", PUNCTUATION_SHR},
+
+    {"++", PUNCTUATION_INCREMENT},
+    {"--", PUNCTUATION_DECREMENT},
 };
 
 lookup_result_t LookupStr(u8* str, int typeCount, lookup_map_t *lookupMap) {
@@ -71,43 +105,38 @@ u8 *substring(u8 *string, int start, int end) {
     return substr;
 }
 
-void PushPunctuation(token_t **tokens, u8 *buffer, int cursor, int line, token_punctuation_type punctType) {
-    token_t punctuation = {
-        .type = TOKEN_PUNCTUATION,
-        .puncType = punctType,
-        .lexeme = substring(buffer, cursor, cursor),
-        .line = line,
-    };
+void InsertNode(trie_node_t *node, u8 *str, token_punctuation_type type) {
+    trie_node_t *current = node;
+    
+    for (int i = 0; i < strlen(str); i++) {
+        if (!current->children[str[i]]) {
+            trie_node_t *newNode = (trie_node_t *)malloc(sizeof(trie_node_t));
+            memset(newNode, 0, sizeof(trie_node_t));
 
-    DArrayPush(*tokens, punctuation);
-}
+            newNode->type = PUNCTUATION_COUNT;
 
-void PushOperator(token_t **tokens, u8 *buffer, int cursor, int line, token_operator_type opType) {
-    token_t operator = {
-        .type = TOKEN_OPERATOR,
-        .opType = opType,
-        .lexeme = substring(buffer, cursor, cursor),
-        .line = line,
-    };
+            current->children[str[i]] = newNode;
+        }
 
-    DArrayPush(*tokens, operator);
+        current = current->children[str[i]];
+    }
+
+    current->type = type;
 }
 
 token_t *tokenize(u8 *buffer, int bufferSize) {
     token_t *tokens = DArrayCreate(token_t);
 
+    trie_node_t parent = {0};
+    parent.type = PUNCTUATION_COUNT;
+
+    for (int i = 0; i < sizeof(punctuations) / sizeof(punctuations[0]); i++) {
+        InsertNode(&parent, punctuations[i].str, punctuations[i].puncType);
+    }
+
     int line = 0;
     int cursor = 0;
     while (cursor < bufferSize) {
-        lookup_result_t twoOpRes = {0};
-        u8 *twoOpLexeme = 0;
-        bool twoOpLexemeUsed = false;
-        
-        if (bufferSize - cursor > 1) {
-            twoOpLexeme = substring(buffer, cursor, cursor+1);
-            twoOpRes = LookupStr(twoOpLexeme, sizeof(twoOperators) / sizeof(twoOperators[0]), twoOperators);
-        }
-
         if (isalpha(buffer[cursor])) {
             int start = cursor;
             while (isalnum(buffer[cursor + 1])) cursor++;
@@ -151,83 +180,86 @@ token_t *tokenize(u8 *buffer, int bufferSize) {
             DArrayPush(tokens, intLiteral);
 
             cursor++;
-        } else if (twoOpRes.found) {
-            token_t twoOp = {
-                .type = TOKEN_OPERATOR,
-                .opType = twoOpRes.opType,
-                .lexeme = twoOpLexeme,
-                .line = line
-            };
-
-            DArrayPush(tokens, twoOp);
-
-            cursor += 2;
-            twoOpLexemeUsed = true;
         } else {
-            switch (buffer[cursor]) {
-                case '+': PushOperator(&tokens, buffer, cursor, line, OPERATOR_PLUS); cursor++; break;
-                case '-': PushOperator(&tokens, buffer, cursor, line, OPERATOR_MINUS); cursor++; break;
-                case '*': PushOperator(&tokens, buffer, cursor, line, OPERATOR_MULT); cursor++; break;
-                case '/': PushOperator(&tokens, buffer, cursor, line, OPERATOR_DIV); cursor++; break;
-                case '=': PushOperator(&tokens, buffer, cursor, line, OPERATOR_EQUALS); cursor++; break;
+            trie_node_t *node = &parent;
+            int pos = cursor;
+            
+            int lastPos = pos;
+            token_punctuation_type lastType = PUNCTUATION_COUNT;
 
-                case ',': PushPunctuation(&tokens, buffer, cursor, line, PUNCTUATION_COMMA); cursor++; break;
-                case '(': PushPunctuation(&tokens, buffer, cursor, line, PUNCTAUTION_OPEN_PAREN); cursor++; break;
-                case ')': PushPunctuation(&tokens, buffer, cursor, line, PUNCTUATION_CLOSE_PAREN); cursor++; break;
-                case '[': PushPunctuation(&tokens, buffer, cursor, line, PUNCTUATION_OPEN_BRACK); cursor++; break;
-                case ']': PushPunctuation(&tokens, buffer, cursor, line, PUNCTUATION_CLOSE_BRACK); cursor++; break;
-                case '{': PushPunctuation(&tokens, buffer, cursor, line, PUNCTUATION_OPEN_CURLY); cursor++; break;
-                case '}': PushPunctuation(&tokens, buffer, cursor, line, PUNCTUATION_CLOSE_CURLY); cursor++; break;
-                case ';': PushPunctuation(&tokens, buffer, cursor, line, PUNCTIATION_SEMICOLON); cursor++; break;
+            while (pos < bufferSize) {
+                u8 c = buffer[pos];
+                trie_node_t *next = node->children[c];
 
-                case '"': {
-                    int start = cursor;
-                    while (buffer[cursor + 1] != '"') cursor++;
+                if (!next) break;
 
-                    token_t strLiteral = {
-                        .type = TOKEN_LITERAL,
-                        .litType = LITERAL_STRING,
-                        .strLiteral = substring(buffer, start + 1, cursor),
-                        .lexeme = substring(buffer, start, cursor + 1),
-                        .line = line,
-                    };
+                node = next;
+                pos++;
 
-                    DArrayPush(tokens, strLiteral);
+                if (node->type != PUNCTUATION_COUNT) {
+                    lastPos = pos;
+                    lastType = node->type;
+                }
+            }
+            
+            if (lastType != PUNCTUATION_COUNT) {
+                token_t punctToken = {0};
+                punctToken.type = TOKEN_PUNCTUATION;
+                punctToken.puncType = lastType;
+                punctToken.lexeme = substring(buffer, cursor, lastPos - 1);
+                punctToken.line = line;
 
-                    cursor += 2;
-                } break;
+                DArrayPush(tokens, punctToken);
 
-                case ' ': {
-                    while (buffer[cursor] == ' ') cursor++;
-                } break;
+                cursor = lastPos;
+            } else {
+                switch (buffer[cursor]) {
+                    case '"': {
+                        int start = cursor;
+                        while (buffer[cursor + 1] != '"') cursor++;
 
-                case '\n': {
-                    cursor++;
-                    line++;
-                } break;
+                        token_t strLiteral = {
+                            .type = TOKEN_LITERAL,
+                            .litType = LITERAL_STRING,
+                            .strLiteral = substring(buffer, start + 1, cursor),
+                            .lexeme = substring(buffer, start, cursor + 1),
+                            .line = line,
+                        };
 
-                case '\0': {
-                    token_t eof = {
-                        .type = TOKEN_EOF,
-                        .line = line,
-                    };
+                        DArrayPush(tokens, strLiteral);
 
-                    DArrayPush(tokens, eof);
-                    return tokens;
-                } break;
+                        cursor += 2;
+                    } break;
 
-                default: {
-                    printf("Unknown character: %c\n", buffer[cursor]);
-                    return NULL;
+                    case ' ': {
+                        while (buffer[cursor] == ' ') cursor++;
+                    } break;
+
+                    case '\n': {
+                        cursor++;
+                        line++;
+                    } break;
+
+                    case '\0': {
+                        token_t eof = {
+                            .type = TOKEN_EOF,
+                            .line = line,
+                        };
+
+                        DArrayPush(tokens, eof);
+                        return tokens;
+                    } break;
+
+                    default: {
+                        printf("Unknown character: %c\n", buffer[cursor]);
+                        return NULL;
+                    }
                 }
             }
         }
-
-        if (twoOpLexeme && !twoOpLexemeUsed) {
-            free(twoOpLexeme);
-        }
     }
 
+    printf("Unrechable\n");
     return 0;
 }
 
@@ -247,10 +279,6 @@ void PrintTokens(token_t *tokens) {
                     case LITERAL_REAL: printf("RealLiteral(%f)", token.realLiteral); break;
                     case LITERAL_STRING: printf("StrLiteral(%s)", token.strLiteral); break;
                 }
-            } break;
-
-            case TOKEN_OPERATOR: {
-                printf("Operator(%s)", token.lexeme);
             } break;
 
             case TOKEN_PUNCTUATION: {
