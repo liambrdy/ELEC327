@@ -137,9 +137,9 @@ token_t *tokenize(u8 *buffer, int bufferSize) {
     int line = 0;
     int cursor = 0;
     while (cursor < bufferSize) {
-        if (isalpha(buffer[cursor])) {
+        if (isalpha(buffer[cursor]) || buffer[cursor] == '_') {
             int start = cursor;
-            while (isalnum(buffer[cursor + 1])) cursor++;
+            while (isalnum(buffer[cursor + 1]) || buffer[cursor + 1] == '_') cursor++;
 
             u8 *lexeme = substring(buffer, start, cursor);
 

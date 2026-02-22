@@ -3,7 +3,7 @@
 
 #include "initialize_leds.h"
 
-time_state GetNextState(time_state current_state, int button_down)
+time_state GetNextState(time_state current_state)
 {
     current_state.pwm++;
 
