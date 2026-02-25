@@ -67,4 +67,6 @@ void *_DArrayInsertAt(void *array, u64 index, void *valuePtr);
 #define DArrayLengthSet(array, length) \
     _DArrayFieldSet(array, DARRAY_LENGTH, length)
 
+extern int bytesAllocated;
+
 #endif

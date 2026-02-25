@@ -8,9 +8,10 @@
 
 #include "darray.h"
 #include "parser.h"
+#include "arena.h"
 
 ast_node_t *GetNewNode(ast_node_type type) {
-    ast_node_t *node = (ast_node_t *)malloc(sizeof(ast_node_t));
+    ast_node_t *node = PushStruct(globalArena, ast_node_t);
     node->type = type;
 
     return node;
@@ -327,7 +328,7 @@ void ParseTypeSpecifier(parser_t *p, decl_specifiers_t *spec) {
     token_t *t = Peek(p);
 
     if (!spec->typeSpecifier) {
-        spec->typeSpecifier = (type_specifier_t *)malloc(sizeof(type_specifier_t));
+        spec->typeSpecifier = PushStruct(globalArena, type_specifier_t);
         memset(spec->typeSpecifier, 0, sizeof(type_specifier_t));
     }
 
@@ -398,7 +399,7 @@ void ParseTypeSpecifier(parser_t *p, decl_specifiers_t *spec) {
 }
 
 decl_specifiers_t *ParseDeclarationSpecifiers(parser_t *p) {
-    decl_specifiers_t *spec = (decl_specifiers_t *)malloc(sizeof(decl_specifiers_t));
+    decl_specifiers_t *spec = PushStruct(globalArena, decl_specifiers_t);
     memset(spec, 0, sizeof(decl_specifiers_t));
 
     storage_class_specifier storageSpec;
@@ -431,7 +432,7 @@ decl_specifiers_t *ParseDeclarationSpecifiers(parser_t *p) {
                     return NULL;
                 }
 
-                spec->typeSpecifier = (type_specifier_t *)malloc(sizeof(type_specifier_t));
+                spec->typeSpecifier = PushStruct(globalArena, type_specifier_t);
                 spec->typeSpecifier->kind = SPECIFIER_TYPEDEF_NAME;
                 spec->typeSpecifier->typedef_type.name = t->lexeme;
             } else if (!advancedOnce) {
@@ -451,7 +452,7 @@ decl_specifiers_t *ParseDeclarationSpecifiers(parser_t *p) {
 ast_parameter_t *ParseParameterDeclaration(parser_t *p) {
     decl_specifiers_t *specifiers = ParseDeclarationSpecifiers(p);
 
-    ast_parameter_t *param = (ast_parameter_t *)malloc(sizeof(ast_parameter_t));
+    ast_parameter_t *param = PushStruct(globalArena, ast_parameter_t);
     param->specifiers = *specifiers;
 
     token_t *t = Peek(p);
@@ -482,7 +483,7 @@ ast_declarator_t *ParseDirectDeclarator(parser_t *p, bool isAbstract) {
         inner = ParseDeclarator(p, isAbstract);
         ExpectPunctuation(p, PUNCTUATION_CLOSE_PAREN, "expects close parentheses in direct declarator");
     } else if (Match(p, TOKEN_IDENTIFIER)) {
-        inner = (ast_declarator_t *)malloc(sizeof(ast_declarator_t));
+        inner = PushStruct(globalArena, ast_declarator_t);
         inner->kind = DECL_IDENTIFIER;
         inner->identifier.name = Previous(p)->lexeme;
     } else if (!isAbstract) {
@@ -492,7 +493,7 @@ ast_declarator_t *ParseDirectDeclarator(parser_t *p, bool isAbstract) {
 
     while (true) {
         if (MatchPunctuation(p, PUNCTUATION_OPEN_BRACK)) {
-            ast_declarator_t *decl = (ast_declarator_t *)malloc(sizeof(ast_declarator_t));
+            ast_declarator_t *decl = PushStruct(globalArena, ast_declarator_t);
             decl->kind = DECL_ARRAY;
             decl->array.inner = inner;
 
@@ -505,7 +506,7 @@ ast_declarator_t *ParseDirectDeclarator(parser_t *p, bool isAbstract) {
 
             inner = decl;
         } else if (MatchPunctuation(p, PUNCTUATION_OPEN_PAREN)) {
-            ast_declarator_t *decl = (ast_declarator_t *)malloc(sizeof(ast_declarator_t));
+            ast_declarator_t *decl = PushStruct(globalArena, ast_declarator_t);
             decl->kind = DECL_FUNCTION;
             decl->function.inner = inner;
 
@@ -526,7 +527,7 @@ ast_declarator_t *ParseDeclarator(parser_t *p, bool isAbstract) {
     ast_declarator_t *pointerChain = NULL;
 
     while (MatchPunctuation(p, PUNCTUATION_STAR)) {
-        ast_declarator_t *ptr = (ast_declarator_t *)malloc(sizeof(ast_declarator_t));
+        ast_declarator_t *ptr = PushStruct(globalArena, ast_declarator_t);
         ptr->kind = DECL_POINTER;
         ptr->pointer.inner = pointerChain;
         ptr->pointer.qualifiers = 0;
@@ -573,13 +574,13 @@ ast_designator_t *ParseDesignator(parser_t *p) {
     ast_designator_t *des = NULL;
 
     if (MatchPunctuation(p, PUNCTUATION_OPEN_BRACK)) {
-        des = (ast_designator_t *)malloc(sizeof(ast_designator_t));
+        des = PushStruct(globalArena, ast_designator_t);
         des->kind = DESIGNATOR_INDEX;
         des->index = ParseConstantExpression(p);
 
         ExpectPunctuation(p, PUNCTUATION_CLOSE_BRACK, "expects close bracket in index designator");
     } else if (MatchPunctuation(p, PUNCTUATION_PERIOD)) {
-        des = (ast_designator_t *)malloc(sizeof(ast_designator_t));
+        des = PushStruct(globalArena, ast_designator_t);
         des->kind = DESIGNATOR_FIELD;
 
         token_t *field = Expect(p, TOKEN_IDENTIFIER, "expects identifier in field designator");
@@ -591,14 +592,14 @@ ast_designator_t *ParseDesignator(parser_t *p) {
 }
 
 ast_initializer_t *ParseInitializer(parser_t *p) {
-    ast_initializer_t *init = (ast_initializer_t *)malloc(sizeof(ast_initializer_t));
+    ast_initializer_t *init = PushStruct(globalArena, ast_initializer_t);
     
     if (MatchPunctuation(p, PUNCTUATION_OPEN_CURLY)) {
         init->kind = INITIALIZER_LIST;
         init->list = DArrayCreate(ast_initializer_list_t *);
         
         do {
-            ast_initializer_list_t *item = (ast_initializer_list_t *)malloc(sizeof(ast_initializer_list_t));
+            ast_initializer_list_t *item = PushStruct(globalArena, ast_initializer_list_t);
             memset(item, 0, sizeof(ast_initializer_list_t));
 
             while (true) {
@@ -639,7 +640,7 @@ ast_initializer_t *ParseInitializer(parser_t *p) {
 }
 
 ast_init_declarator_t *ParseInitDeclarator(parser_t *p) {
-    ast_init_declarator_t *node = (ast_init_declarator_t *)malloc(sizeof(ast_init_declarator_t));
+    ast_init_declarator_t *node = PushStruct(globalArena, ast_init_declarator_t);
 
     node->declarator = ParseDeclarator(p, false);
     node->initializer = NULL;
@@ -709,10 +710,8 @@ ast_node_t *ParseDeclaration(parser_t *p) {
     return new;
 }
 
-
-
 ast_node_t *AstFromTokens(token_t *tokens) {
-    ast_node_t *program = (ast_node_t *)malloc(sizeof(ast_node_t));
+    ast_node_t *program = PushStruct(globalArena, ast_node_t);
     program->type = AST_PROGRAM;
     program->program.decls = DArrayCreate(ast_node_t *);
 

@@ -15,4 +15,8 @@ typedef int64_t i64;
 
 #define ARRAY_LEN(arr) (sizeof(arr) / sizeof((arr)[0]))
 
+#define Kilobytes(kb) (kb * 1024)
+#define Megabytes(mb) (Kilobytes(mb) * 1024)
+#define Gigabytes(gb) (Megabytes(gb) * 1024)
+
 #endif

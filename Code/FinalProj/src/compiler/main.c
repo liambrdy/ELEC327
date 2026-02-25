@@ -5,6 +5,7 @@
 #include "lexer.h"
 #include "darray.h"
 #include "ast.h"
+#include "arena.h"
 
 void usage(const char *exe) {
     printf("Usage: %s in_file [-o out_file] \n", exe);
@@ -74,21 +75,39 @@ int main(int argc, char **argv) {
 
     fclose(f);
 
+    u64 globalArenaSize = Megabytes(100);
+    u8 *globalArenaMem = (u8 *)malloc(globalArenaSize);
+    if (!globalArenaMem) {
+        printf("Failed to allocate memory");
+        return 1;
+    }
+
+    globalArena = CreateArena(globalArenaMem, globalArenaSize);
+
     token_t *tokens = tokenize(buffer, bytesRead + 1);
     if (!tokens) {
         return 1;
     }
 
-    PrintTokens(tokens);
+    // PrintTokens(tokens);
 
-    ast_node_t *ast = AstFromTokens(tokens);
-    if (!ast) {
-        return 1;
-    }
+    printf("Used %ld of %ld bytes after lexer\n", globalArena->pos, globalArena->capacity);
 
-    PrintAst(ast, 0);
+    // ast_node_t *ast = AstFromTokens(tokens);
+    // if (!ast) {
+    //     return 1;
+    // }
+
+    // PrintAst(ast, 0);
+
+    printf("Used %ld of %ld bytes after ast\n", globalArena->pos, globalArena->capacity);
+    printf("Used %d bytes by darray\n", bytesAllocated);
 
     free(buffer);
+    free(globalArenaMem);
 
     return 0;
 }
+
+//TODO add arena allocator
+//TODO implement preprocessors

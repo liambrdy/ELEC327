@@ -4,10 +4,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+int bytesAllocated = 0;
+
 void *_DArrayCreate(u64 capacity, u64 stride) {
     u64 headerSize = DARRAY_FIELD_LENGTH * sizeof(u64);
     u64 arraySize = capacity * stride;
     u64 *newArray = (u64 *)malloc(headerSize + arraySize);
+    bytesAllocated += headerSize + arraySize;
     memset(newArray, 0, headerSize + arraySize);
     newArray[DARRAY_CAPACITY] = capacity;
     newArray[DARRAY_LENGTH] = 0;
@@ -20,6 +23,7 @@ void _DArrayDestroy(void *array) {
     u64 headerSize = DARRAY_FIELD_LENGTH * sizeof(u64);
     u64 totalSize = headerSize + (header[DARRAY_CAPACITY] * header[DARRAY_STRIDE]);
     free(header);
+    bytesAllocated -= totalSize;
 }
 
 u64 _DArrayFieldGet(void *array, u64 field) {

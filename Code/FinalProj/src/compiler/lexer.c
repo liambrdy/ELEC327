@@ -7,6 +7,7 @@
 #include <stdio.h>
 
 #include "darray.h"
+#include "arena.h"
 
 typedef struct lookup_result_t {
     union {
@@ -117,7 +118,7 @@ lookup_result_t LookupStr(u8* str, int typeCount, lookup_map_t *lookupMap) {
 
 u8 *substring(u8 *string, int start, int end) {
     int length = end - start + 1;
-    u8 *substr = (u8 *)malloc((length + 1) * sizeof(u8));
+    u8 *substr = PushArray(globalArena, u8, length + 1);
     memcpy(substr, string + start, length);
     substr[length] = '\0';
 
@@ -129,7 +130,7 @@ void InsertNode(trie_node_t *node, u8 *str, token_punctuation_type type) {
     
     for (int i = 0; i < strlen(str); i++) {
         if (!current->children[str[i]]) {
-            trie_node_t *newNode = (trie_node_t *)malloc(sizeof(trie_node_t));
+            trie_node_t *newNode = PushStruct(globalArena, trie_node_t);
             memset(newNode, 0, sizeof(trie_node_t));
 
             newNode->type = PUNCTUATION_COUNT;
