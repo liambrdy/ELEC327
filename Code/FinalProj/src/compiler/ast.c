@@ -75,7 +75,7 @@ ast_node_t *ParsePrimaryExpression(parser_t *p) {
         }
 
         case TOKEN_PUNCTUATION: {
-            ExpectPunctuation(p, PUNCTAUTION_OPEN_PAREN, "expect open parenthese around expression");
+            ExpectPunctuation(p, PUNCTUATION_OPEN_PAREN, "expect open parenthese around expression");
             ast_node_t *expr = ParseExpression(p);
             ExpectPunctuation(p, PUNCTUATION_CLOSE_PAREN, "expect close parenthese around expression");
 
@@ -109,7 +109,7 @@ ast_node_t *ParsePostfixExpression(parser_t *p) {
                 primaryExpr = new;
             } break;
 
-            case PUNCTAUTION_OPEN_PAREN: {
+            case PUNCTUATION_OPEN_PAREN: {
                 Advance(p);
 
                 ast_node_t *new = GetNewNode(AST_FUNC_CALL);
@@ -294,8 +294,8 @@ ast_node_t *ParseVariableDeclaration(parser_t *p) {
     }
 
     ast_node_t *node = GetNewNode(AST_DECL);
-    node->decl.name = name->lexeme;
-    node->decl.value = init;
+    // node->decl.name = name->lexeme;
+    // node->decl.value = init;
 
     return node;
 }
@@ -304,22 +304,357 @@ ast_node_t *ParseFunction(parser_t *p) {
     return NULL;
 }
 
-ast_node_t *ParseDeclarationSpecifiers(parser_t *p) {
+static bool MergeBuiltinType(builtin_type_t *dstType, builtin_type_t *srcType) {
+    if (srcType->base != BUILTIN_NONE) {
+        if (dstType->base != BUILTIN_NONE) {
+            printf("type specifier has too many builtin types\n");
+            return false;
+        }
 
+        dstType->base = srcType->base;
+    }
+
+    if (srcType->width != WIDTH_DEFAULT) {
+        if (dstType->width != WIDTH_DEFAULT) {
+            if (srcType->width == WIDTH_LONG && dstType->width == WIDTH_LONG) {
+                dstType->width = WIDTH_LONGLONG;
+            } else {
+                printf("type specifier has too many width specifiers\n");
+                return false;
+            }
+        } else {
+            dstType->width = srcType->width;
+        }
+    }
+
+    if (srcType->sign != SIGN_NONE) {
+        if (dstType->sign != SIGN_NONE) {
+            printf("type specifier has too many sign specifiers\n");
+            return false;
+        }
+
+        dstType->sign = srcType->sign;
+    }
+
+    return true;
 }
 
-ast_node_t *ParseInitDeclaratorList(parser_t *p) {
+void ParseTypeSpecifier(parser_t *p, decl_specifiers_t *spec) {
+    token_t *t = Peek(p);
 
+    if (!spec->typeSpecifier) {
+        spec->typeSpecifier = (type_specifier_t *)malloc(sizeof(type_specifier_t));
+        memset(spec->typeSpecifier, 0, sizeof(type_specifier_t));
+    }
+
+    builtin_type_t type = {0};
+    if (KeywordToBuiltinType(t->keywordType, &type)) {
+        spec->typeSpecifier->kind = SPECIFIER_BUILTIN;
+
+        if (!MergeBuiltinType(&spec->typeSpecifier->builtin.type, &type)) {
+            return;
+        }
+    }
+
+    // TODO Implement struct/union and enum type specifiers
+}
+
+decl_specifiers_t *ParseDeclarationSpecifiers(parser_t *p) {
+    decl_specifiers_t *spec = (decl_specifiers_t *)malloc(sizeof(decl_specifiers_t));
+    memset(spec, 0, sizeof(decl_specifiers_t));
+
+    storage_class_specifier storageSpec;
+    type_qualifier qualifier;    
+    function_specifier funcSpec;
+
+    bool advancedOnce = false;
+    
+    while (true) {
+        token_t *t = Peek(p);
+        if (t->type == TOKEN_KEYWORD) {
+            if (KeywordToStorageClass(t->keywordType, &storageSpec)) {
+                if (spec->storageClass != STORAGE_SPEC_NONE) {
+                    printf("expects only one storage class specifier\n");
+                    return NULL;
+                }
+
+                spec->storageClass = storageSpec;
+            } else if (KeywordToTypeQualifier(t->keywordType, &qualifier)) {
+                spec->typeQualifier |= qualifier;
+            } else if (KeywordToFunctionSpecifier(t->keywordType, &funcSpec)) {
+                spec->functionSpecifier |= funcSpec;
+            } else {
+                ParseTypeSpecifier(p, spec);
+            }
+        } else if (t->type == TOKEN_IDENTIFIER) {
+            if (HashContains(p->scope->symbols, t->lexeme)) {
+                if (spec->typeSpecifier) {
+                    printf("declaration specifiers already has type specifier\n");
+                    return NULL;
+                }
+
+                spec->typeSpecifier = (type_specifier_t *)malloc(sizeof(type_specifier_t));
+                spec->typeSpecifier->kind = SPECIFIER_TYPEDEF_NAME;
+                spec->typeSpecifier->typedef_type.name = t->lexeme;
+            } else if (!advancedOnce) {
+                return NULL;
+            } else {
+                return spec;
+            }
+        } else {
+            return spec;
+        }
+
+        Advance(p);
+        advancedOnce = true;
+    }
+}
+
+static ast_declarator_t *ParseDeclarator(parser_t *p, bool isAbstract);
+
+ast_parameter_t *ParseParameterDeclaration(parser_t *p) {
+    decl_specifiers_t *specifiers = ParseDeclarationSpecifiers(p);
+
+    ast_parameter_t *param = (ast_parameter_t *)malloc(sizeof(ast_parameter_t));
+    param->specifiers = *specifiers;
+
+    token_t *t = Peek(p);
+    if (t->type == TOKEN_PUNCTUATION && t->puncType == PUNCTUATION_COMMA) {
+        return param;
+    }
+
+    param->declarator = ParseDeclarator(p, true);
+
+    return param;
+}
+
+ast_parameter_t **ParseParameterList(parser_t *p) {
+    ast_parameter_t **params = DArrayCreate(ast_parameter_t *);
+    
+    do {
+        ast_parameter_t *param = ParseParameterDeclaration(p);
+        DArrayPush(params, param);
+    } while (MatchPunctuation(p, PUNCTUATION_COMMA));
+
+    return params;
+}
+
+ast_declarator_t *ParseDirectDeclarator(parser_t *p, bool isAbstract) {
+    ast_declarator_t *inner = NULL;
+
+    if (MatchPunctuation(p, PUNCTUATION_OPEN_PAREN)) {
+        inner = ParseDeclarator(p, isAbstract);
+        ExpectPunctuation(p, PUNCTUATION_CLOSE_PAREN, "expects close parentheses in direct declarator");
+    } else if (Match(p, TOKEN_IDENTIFIER)) {
+        inner = (ast_declarator_t *)malloc(sizeof(ast_declarator_t));
+        inner->kind = DECL_IDENTIFIER;
+        inner->identifier.name = Previous(p)->lexeme;
+    } else if (!isAbstract) {
+        printf("expect open parenthese or identifier in direct declarator\n");
+        return NULL;
+    }
+
+    while (true) {
+        if (MatchPunctuation(p, PUNCTUATION_OPEN_BRACK)) {
+            ast_declarator_t *decl = (ast_declarator_t *)malloc(sizeof(ast_declarator_t));
+            decl->kind = DECL_ARRAY;
+            decl->array.inner = inner;
+
+            if (!MatchPunctuation(p, PUNCTUATION_CLOSE_BRACK)) {
+                decl->array.size = ParseExpression(p);
+                ExpectPunctuation(p, PUNCTUATION_CLOSE_BRACK, "expects close bracket in array declarator");
+            } else {
+                decl->array.size = NULL;
+            }
+
+            inner = decl;
+        } else if (MatchPunctuation(p, PUNCTUATION_OPEN_PAREN)) {
+            ast_declarator_t *decl = (ast_declarator_t *)malloc(sizeof(ast_declarator_t));
+            decl->kind = DECL_FUNCTION;
+            decl->function.inner = inner;
+
+            decl->function.parameters = ParseParameterList(p);
+
+            ExpectPunctuation(p, PUNCTUATION_CLOSE_PAREN, "expects close parenthese after function declarator");
+
+            inner = decl;
+        } else {
+            break;
+        }
+    }
+
+    return inner;
+}
+
+ast_declarator_t *ParseDeclarator(parser_t *p, bool isAbstract) {
+    ast_declarator_t *pointerChain = NULL;
+
+    while (MatchPunctuation(p, PUNCTUATION_STAR)) {
+        ast_declarator_t *ptr = (ast_declarator_t *)malloc(sizeof(ast_declarator_t));
+        ptr->kind = DECL_POINTER;
+        ptr->pointer.inner = pointerChain;
+        ptr->pointer.qualifiers = 0;
+        
+        while (true) {
+            token_t *t = Peek(p);
+            if (t->type == TOKEN_KEYWORD) {
+                type_qualifier qual;
+                if (KeywordToTypeQualifier(t->keywordType, &qual)) {
+                    Advance(p);
+                    ptr->pointer.qualifiers |= qual;
+                } else {
+                    printf("expects type qualifiers inside pointer declarator\n");
+                    return NULL;
+                }
+            } else {
+                break;
+            }
+        }
+
+        pointerChain = ptr;
+    }
+
+    ast_declarator_t *direct = ParseDirectDeclarator(p, isAbstract);
+
+    if (!pointerChain) {
+        return direct;
+    }
+
+    if (direct == NULL && isAbstract) {
+        return pointerChain;
+    }
+
+    ast_declarator_t *bottom = pointerChain;
+    while (bottom->pointer.inner) {
+        bottom = bottom->pointer.inner;
+    }
+    bottom->pointer.inner = direct;
+    
+    return pointerChain;
+}
+
+ast_designator_t *ParseDesignator(parser_t *p) {
+    ast_designator_t *des = NULL;
+
+    if (MatchPunctuation(p, PUNCTUATION_OPEN_BRACK)) {
+        des = (ast_designator_t *)malloc(sizeof(ast_designator_t));
+        des->kind = DESIGNATOR_INDEX;
+        des->index = ParseConstantExpression(p);
+
+        ExpectPunctuation(p, PUNCTUATION_CLOSE_BRACK, "expects close bracket in index designator");
+    } else if (MatchPunctuation(p, PUNCTUATION_PERIOD)) {
+        des = (ast_designator_t *)malloc(sizeof(ast_designator_t));
+        des->kind = DESIGNATOR_FIELD;
+
+        token_t *field = Expect(p, TOKEN_IDENTIFIER, "expects identifier in field designator");
+        
+        des->field = field->lexeme;
+    }
+
+    return des;
+}
+
+ast_initializer_t *ParseInitializer(parser_t *p) {
+    ast_initializer_t *init = (ast_initializer_t *)malloc(sizeof(ast_initializer_t));
+    
+    if (MatchPunctuation(p, PUNCTUATION_OPEN_CURLY)) {
+        init->kind = INITIALIZER_LIST;
+        init->list = DArrayCreate(ast_initializer_list_t *);
+        
+        do {
+            ast_initializer_list_t *item = (ast_initializer_list_t *)malloc(sizeof(ast_initializer_list_t));
+            memset(item, 0, sizeof(ast_initializer_list_t));
+
+            while (true) {
+                ast_designator_t *designator = ParseDesignator(p);
+                if (!designator) {
+                    break;
+                }
+
+                if (!item->designation) {
+                    item->designation = DArrayCreate(ast_designator_t *);
+                }
+
+                DArrayPush(item->designation, designator);
+            }
+
+            if (item->designation) {
+                ExpectPunctuation(p, PUNCTUATION_EQUALS, "expects equals with designation");
+            }
+
+            item->initializer = ParseInitializer(p);
+            DArrayPush(init->list, item);
+
+            if (!MatchPunctuation(p, PUNCTUATION_COMMA))
+                break;
+
+            token_t *t = Peek(p);
+            if (t->type == TOKEN_PUNCTUATION && t->puncType == PUNCTUATION_CLOSE_CURLY)
+                break;
+        } while (1);
+
+        ExpectPunctuation(p, PUNCTUATION_CLOSE_CURLY, "expects closed curly brackets after initializer");
+    } else {
+        init->kind = INITIALIZER_EXPR;
+        init->expr = ParseExpression(p);
+    }
+    
+    return init;
+}
+
+ast_init_declarator_t *ParseInitDeclarator(parser_t *p) {
+    ast_init_declarator_t *node = (ast_init_declarator_t *)malloc(sizeof(ast_init_declarator_t));
+
+    node->declarator = ParseDeclarator(p, false);
+    node->initializer = NULL;
+
+    if (MatchPunctuation(p, PUNCTUATION_EQUALS)) {
+        node->initializer = ParseInitializer(p);
+    }
+
+    return node;
+}
+
+static bool IsDeclaratorStart(parser_t *p) {
+    token_t *t = Peek(p);
+
+    if (t->type == TOKEN_PUNCTUATION) {
+        switch (t->puncType) {
+            case PUNCTUATION_STAR: return true;
+            case PUNCTUATION_OPEN_PAREN: return true;
+
+            default: return false;
+        }
+    } else if (t->type == TOKEN_IDENTIFIER) {
+        return true;
+    }
+
+    return false;
 }
 
 ast_node_t *ParseDeclaration(parser_t *p) {
-    ast_node_t *declSpecifiers = ParseDeclarationSpecifiers(p);
+    ast_node_t *new = GetNewNode(AST_DECL);
 
-    if (!MatchPunctuation(p, PUNCTUATION_SEMICOLON)) {
-        ast_node_t *init = ParseInitDeclaratorList(p);
+    decl_specifiers_t *declSpecifiers = ParseDeclarationSpecifiers(p);
+    if (declSpecifiers == NULL) {
+        printf("expect known type, given %s\n", Peek(p)->lexeme);
+        return NULL;
     }
 
-    
+    new->decl.specifiers = *declSpecifiers;
+
+    new->decl.initDeclList = DArrayCreate(ast_declarator_t *);
+
+    if (IsDeclaratorStart(p)) {
+        do {
+            ast_init_declarator_t *declarator = ParseInitDeclarator(p);
+            DArrayPush(new->decl.initDeclList, declarator);
+        } while (MatchPunctuation(p, PUNCTUATION_COMMA));
+    }
+
+    ExpectPunctuation(p, PUNCTUATION_SEMICOLON, "expects semicolon after declaration");
+
+    return new;
 }
 
 ast_node_t *AstFromTokens(token_t *tokens) {
@@ -331,6 +666,9 @@ ast_node_t *AstFromTokens(token_t *tokens) {
     p.tokens = tokens;
     p.count = DArrayLength(tokens);
     p.pos = 0;
+    p.scope = NULL;
+    
+    PushScope(&p);
     
     while (!Match(&p, TOKEN_EOF)) {
         ast_node_t *decl = ParseDeclaration(&p);
@@ -344,13 +682,180 @@ ast_node_t *AstFromTokens(token_t *tokens) {
     return program;
 }
 
-void PrintAst(ast_node_t *parent) {
+void PrintDeclSpecifiers(decl_specifiers_t *specifiers) {
+    bool needSpace = false;
+
+    if (specifiers->storageClass != STORAGE_SPEC_NONE) {
+        printf("%s", StorageClassToStr(specifiers->storageClass));
+        needSpace = true;
+    }
+
+    for (int i = 0; i < TYPE_QUALIFIER_COUNT; i++) {
+        if (specifiers->typeQualifier & (1 << i)) {
+            if (needSpace) {
+                printf(" ");
+            }
+            printf("%s", TypeQualifierToStr((type_qualifier)(1 << i)));
+            needSpace = true;
+        }
+    }
+
+    for (int i = 0; i < FUNCTION_SPECIFIER_COUNT; i++) {
+        if (specifiers->functionSpecifier & (1 << i)) {
+            if (needSpace) {
+                printf(" ");
+            }
+            printf("%s", FunctionSpecifierToStr((function_specifier)(1 << i)));
+            needSpace = true;
+        }
+    }
+
+    type_specifier_t *spec = specifiers->typeSpecifier;
+    switch (spec->kind) {
+        case SPECIFIER_BUILTIN: {
+            builtin_type_t bt = spec->builtin.type;
+            
+            if (bt.sign != SIGN_NONE) {
+                if (needSpace) {
+                    printf(" ");
+                }
+                printf("%s", SignToStr(bt.sign));
+                needSpace = true;
+            }
+
+            if (bt.width != WIDTH_DEFAULT) {
+                if (needSpace) {
+                    printf(" ");
+                }
+                printf("%s", WidthToStr(bt.sign));
+                needSpace = true;
+            }
+            
+            if (needSpace) {
+                printf(" ");
+            }
+            if (bt.base != BUILTIN_NONE) {
+                printf("%s", BaseToStr(bt.base));
+                needSpace = true;
+            } else
+                printf("int");
+        } break;
+
+        case SPECIFIER_STRUCT_UNION: {
+            printf("%s ", spec->struct_union.isUnion ? "union" : "struct");
+            if (spec->struct_union.name) {
+                printf("%s", spec->struct_union.name);
+            }
+
+            // TODO Implement struct/union printing
+        } break;
+
+        case SPECIFIER_ENUM: {
+            // TODO Implement enum printing
+        } break;
+
+        case SPECIFIER_TYPEDEF_NAME: {
+            printf("%s", spec->typedef_type.name);
+        } break;
+
+        default: break;
+    }
+}
+
+void PrintAstDeclarator(ast_declarator_t *decl) {
+    switch (decl->kind) {
+        case DECL_IDENTIFIER: {
+            printf("%s", decl->identifier.name);
+        } break;
+
+        case DECL_POINTER: {
+            printf("*");
+            for (int i = 0; i < TYPE_QUALIFIER_COUNT; i++) {
+                if (decl->pointer.qualifiers & (1 << i)) {
+                    printf(" %s", TypeQualifierToStr((type_qualifier)(1 << i)));
+                }
+            }
+            PrintAstDeclarator(decl->pointer.inner);
+        } break;
+
+        case DECL_ARRAY: {
+            PrintAstDeclarator(decl->array.inner);
+            printf("[");
+            PrintAst(decl->array.size, 0);
+            printf("]");
+        } break;
+
+        case DECL_FUNCTION: {
+            PrintAstDeclarator(decl->function.inner);
+            printf("(");
+            int paramCount = DArrayLength(decl->function.parameters);
+            for (int i = 0; i < paramCount; i++) {
+                ast_parameter_t *param = decl->function.parameters[i];
+                PrintDeclSpecifiers(&param->specifiers);
+                printf(" ");
+                PrintAstDeclarator(param->declarator);
+                
+                if (i < paramCount - 1) {
+                    printf(", ");
+                }
+            }
+            printf(")");
+        } break;
+        
+        default: break;
+    }
+}
+
+void PrintAstInitializer(ast_initializer_t *initializer) {
+    switch (initializer->kind) {
+        case INITIALIZER_EXPR: {
+            PrintAst(initializer->expr, 0);
+        } break;
+
+        case INITIALIZER_LIST: {
+            int listLen = DArrayLength(initializer->list);
+            for (int i = 0; i < listLen; i++) {
+                ast_initializer_list_t *init = initializer->list[i];
+                
+                if (init->designation) {
+                    int designatorLen = DArrayLength(init->designation);
+                    for (int j = 0; j < designatorLen; j++) {
+                        switch (init->designation[j]->kind) {
+                            case DESIGNATOR_FIELD: {
+                                printf(".%s", init->designation[j]->field);
+                            } break;
+
+                            case DESIGNATOR_INDEX: {
+                                printf("[");
+                                PrintAst(init->designation[j]->index, 0);
+                                printf("]");
+                            } break;
+                        }
+                    }
+
+                    printf(" = ");
+                }
+
+                PrintAstInitializer(init->initializer);
+            }
+        } break;
+    }
+}
+
+void PrintAst(ast_node_t *parent, int depth) {
+    u8 *tabs = NULL;
+    if (depth > 0) {
+        tabs = (u8 *)malloc(depth);
+        for (int i = 0; i < depth; i++)
+            tabs[i] = '\t';
+    }
+
     switch (parent->type) {
         case AST_PROGRAM: {
             printf("[\n");
             for (int i = 0; i < DArrayLength(parent->program.decls); i++) {
                 printf("\t");
-                PrintAst(parent->program.decls[i]);
+                PrintAst(parent->program.decls[i], depth + 1);
 
                 if (i < DArrayLength(parent->program.decls) - 1) {
                     printf(", ");
@@ -365,19 +870,36 @@ void PrintAst(ast_node_t *parent) {
         } break;
 
         case AST_DECL: {
-            printf("VarDecl(%s = ", parent->decl.name);
-            PrintAst(parent->decl.value);
+            printf("Declaration(");
+            PrintDeclSpecifiers(&parent->decl.specifiers);
+            printf("\n%s\t", tabs);
+
+            int declCount = DArrayLength(parent->decl.initDeclList);
+            for (int i = 0; i < declCount; i++) {
+                ast_init_declarator_t *decl = parent->decl.initDeclList[i];
+                PrintAstDeclarator(decl->declarator);
+
+                if (decl->initializer) {
+                    printf(" = { ");
+                    PrintAstInitializer(decl->initializer);
+                    printf(" }");
+                }
+
+                if (i < declCount - 1) {
+                    printf(",\n%s\t", tabs);
+                }
+            }
             printf(")");
         } break;
 
         case AST_FUNC_CALL: {
             printf("FunCall(");
-            PrintAst(parent->func_call.fun);
+            PrintAst(parent->func_call.fun, depth + 1);
             printf("\tparams = [");
 
             i32 paramCount = DArrayLength(parent->func_call.params);
             for (int i = 0; i < paramCount; i++) {
-                PrintAst(parent->func_call.params[i]);
+                PrintAst(parent->func_call.params[i], depth + 1);
                 if (i < paramCount - 1) {
                     printf(", ");
                 }
@@ -399,25 +921,25 @@ void PrintAst(ast_node_t *parent) {
 
         case AST_TERNARY_EXPR: {
             printf("TernExpr(");
-            PrintAst(parent->ternary_expr.condition);
+            PrintAst(parent->ternary_expr.condition, depth + 1);
             printf(" ? ");
-            PrintAst(parent->ternary_expr.then_expr);
+            PrintAst(parent->ternary_expr.then_expr, depth + 1);
             printf(" : ");
-            PrintAst(parent->ternary_expr.else_expr);
+            PrintAst(parent->ternary_expr.else_expr, depth + 1);
             printf(")");
         } break;
 
         case AST_BINARY_EXPR: {
             printf("BinOp(");
-            PrintAst(parent->binary_op.left);
+            PrintAst(parent->binary_op.left, depth + 1);
             printf(" %s ", BinaryToStr(parent->binary_op.op));
-            PrintAst(parent->binary_op.right);
+            PrintAst(parent->binary_op.right, depth + 1);
             printf(")");
         } break;
 
         case AST_UNARY_EXPR: {
             printf("UnOp(%s", UnaryToStr(parent->unary_op.op));
-            PrintAst(parent->unary_op.expr);
+            PrintAst(parent->unary_op.expr, depth + 1);
             printf(")");
         } break;
 
@@ -427,15 +949,15 @@ void PrintAst(ast_node_t *parent) {
 
         case AST_INDEX: {
             printf("Index(");
-            PrintAst(parent->index.array);
+            PrintAst(parent->index.array, depth + 1);
             printf("[");
-            PrintAst(parent->index.index);
+            PrintAst(parent->index.index, depth + 1);
             printf("])");
         } break;
 
         case AST_MEMBER: {
             printf("Member(");
-            PrintAst(parent->member.parent);
+            PrintAst(parent->member.parent, depth + 1);
             printf(".%s)", parent->member.member);
         } break;
 

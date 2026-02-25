@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 token_t *Peek(parser_t *p) {
     return &p->tokens[p->pos];
@@ -87,4 +88,21 @@ token_t *ExpectKeyword(parser_t *p, token_keyword_type type, const char *error_m
 
 token_t *ExpectPunctuation(parser_t *p, token_punctuation_type type, const char *error_msg) {
     return _Expect(p, TOKEN_PUNCTUATION, type, error_msg);
+}
+
+void PushScope(parser_t *p) {
+    scope_t *scope = (scope_t *)malloc(sizeof(scope_t));
+    scope->symbols = CreateHashTable(sizeof(symbol_kind));
+    scope->parentScope = p->scope;
+    p->scope = scope;
+}
+
+void PopScope(parser_t *p) {
+    scope_t *old = p->scope;
+    p->scope = old->parentScope;
+    free(old);
+}
+
+void InsertSymbol(parser_t *p, u8 *name, symbol_kind kind) {
+    HashInsert(p->scope->symbols, name, &kind);
 }

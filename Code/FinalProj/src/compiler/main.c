@@ -86,7 +86,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    PrintAst(ast);
+    PrintAst(ast, 0);
 
     free(buffer);
 

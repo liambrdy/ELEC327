@@ -13,4 +13,6 @@ typedef int16_t i16;
 typedef int32_t i32;
 typedef int64_t i64;
 
+#define ARRAY_LEN(arr) (sizeof(arr) / sizeof((arr)[0]))
+
 #endif

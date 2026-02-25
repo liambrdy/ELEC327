@@ -19,7 +19,7 @@ typedef enum token_literal_type {
 
 typedef enum token_punctuation_type {
     PUNCTUATION_COMMA,
-    PUNCTAUTION_OPEN_PAREN,
+    PUNCTUATION_OPEN_PAREN,
     PUNCTUATION_CLOSE_PAREN,
     PUNCTUATION_OPEN_BRACK,
     PUNCTUATION_CLOSE_BRACK,
@@ -29,10 +29,10 @@ typedef enum token_punctuation_type {
     PUNCTUATION_COLON,
     PUNCTUATION_QUESTION_MARK,
     PUNCTUATION_PERIOD,
+    PUNCTUATION_STAR,
 
     PUNCTUATION_PLUS,
     PUNCTUATION_MINUS,
-    PUNCTUATION_MULT,
     PUNCTUATION_DIV,
     PUNCTUATION_MOD,
 
@@ -67,8 +67,32 @@ typedef enum token_punctuation_type {
 } token_punctuation_type;
 
 typedef enum token_keyword_type {
-    KEYWORD_FUNC,
-    KEYWORD_LET,
+    KEYWORD_AUTO,
+    KEYWORD_EXTERN,
+    KEYWORD_REGISTER,
+    KEYWORD_STATIC,
+    KEYWORD_TYPEDEF,
+
+    KEYWORD_VOID,
+    KEYWORD_CHAR,
+    KEYWORD_SHORT,
+    KEYWORD_INT,
+    KEYWORD_LONG,
+    KEYWORD_FLOAT,
+    KEYWORD_DOUBLE,
+    KEYWORD_SIGNED,
+    KEYWORD_UNSIGNED,
+
+    KEYWORD_STRUCT,
+    KEYWORD_UNION,
+    KEYWORD_ENUM,
+
+    KEYWORD_CONST,
+    KEYWORD_RESTRICT,
+    KEYWORD_VOLATILE,
+
+    KEYWORD_INLINE,
+
     KEYWORD_COUNT,
 } token_keyword_type;
 

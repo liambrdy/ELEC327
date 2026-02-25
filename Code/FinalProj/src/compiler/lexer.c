@@ -32,13 +32,32 @@ typedef struct lookup_map_t {
 } lookup_map_t;
 
 lookup_map_t keywords[] = {
-    {"func", KEYWORD_FUNC},
-    {"let", KEYWORD_LET},
+    {"auto", KEYWORD_AUTO},
+    {"extern", KEYWORD_EXTERN},
+    {"register", KEYWORD_REGISTER},
+    {"static", KEYWORD_STATIC},
+    {"typedef", KEYWORD_TYPEDEF},
+    {"void", KEYWORD_VOID},
+    {"char", KEYWORD_CHAR},
+    {"short", KEYWORD_SHORT},
+    {"int", KEYWORD_INT},
+    {"long", KEYWORD_LONG},
+    {"float", KEYWORD_FLOAT},
+    {"double", KEYWORD_DOUBLE},
+    {"signed", KEYWORD_SIGNED},
+    {"unsigned", KEYWORD_UNSIGNED},
+    {"struct", KEYWORD_STRUCT},
+    {"union", KEYWORD_UNION},
+    {"enum", KEYWORD_ENUM},
+    {"const", KEYWORD_CONST},
+    {"restrict", KEYWORD_RESTRICT},
+    {"volatile", KEYWORD_VOLATILE},
+    {"inline", KEYWORD_INLINE},
 };
 
 lookup_map_t punctuations[] = {
     {",", PUNCTUATION_COMMA},
-    {"(", PUNCTAUTION_OPEN_PAREN},
+    {"(", PUNCTUATION_OPEN_PAREN},
     {")", PUNCTUATION_CLOSE_PAREN},
     {"[", PUNCTUATION_OPEN_BRACK},
     {"]", PUNCTUATION_CLOSE_BRACK},
@@ -48,10 +67,10 @@ lookup_map_t punctuations[] = {
     {":", PUNCTUATION_COLON},
     {"?", PUNCTUATION_QUESTION_MARK},
     {".", PUNCTUATION_PERIOD},
+    {"*", PUNCTUATION_STAR},
 
     {"+", PUNCTUATION_PLUS},
     {"-", PUNCTUATION_MINUS},
-    {"*", PUNCTUATION_MULT},
     {"/", PUNCTUATION_DIV},
     {"%", PUNCTUATION_MOD},
 

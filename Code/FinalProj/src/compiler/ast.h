@@ -65,20 +65,31 @@ typedef enum ast_node_type {
     AST_IDENTIFIER,
 } ast_node_type;
 
-typedef enum specifier_type {
-    SPEC_STORAGE,
-    SPEC_TYPE,
-    SPEC_QUAL,
-    SPEC_FUNC,
-} specifier_type;
+typedef struct ast_decl_t ast_decl_t;
+typedef struct ast_node_t ast_node_t;
 
-typedef enum storage_specifier {
+typedef enum storage_class_specifier {
+    STORAGE_SPEC_NONE,
     STORAGE_SPEC_AUTO,
     STORAGE_SPEC_EXTERN,
     STORAGE_SPEC_REGISTER,
     STORAGE_SPEC_STATIC,
     STORAGE_SPEC_TYPEDEF,
-} storage_specifier;
+} storage_class_specifier;
+
+typedef enum type_qualifier {
+    TYPE_QUALIFIER_NONE = 0,
+    TYPE_QUALIFIER_CONST = (1 << 0),
+    TYPE_QUALIFIER_RESTRICT = (1 << 1),
+    TYPE_QUALIFIER_VOLATILE = (1 << 2),
+    TYPE_QUALIFIER_COUNT = 3,
+} type_qualifier;
+
+typedef enum function_specifier {
+    FUNCTION_SPECIFIER_NONE = 0,
+    FUNCTION_SPECIFIER_INLINE = (1 << 0),
+    FUNCTION_SPECIFIER_COUNT = 1,
+} function_specifier;
 
 typedef enum type_specifier_kind {
     SPECIFIER_BUILTIN,
@@ -87,61 +98,149 @@ typedef enum type_specifier_kind {
     SPECIFIER_TYPEDEF_NAME,
 } type_specifier_kind;
 
-typedef enum builtin_types {
-    BT_VOID,
-    BT_CHAR,
-    BT_SHORT,
-    BT_INT,
-    BT_INT8,
-    BT_INT16,
-    BT_INT32,
-    BT_INT64,
-    BT_LONG,
-    BT_FLOAT,
-    BT_DOUBLE,
-    BT_SIGNED,
-    BT_UNSIGNED,
-    BT_BOOL,
-} builtin_types;
+typedef enum builtin_base {
+    BUILTIN_NONE,
+    BUILTIN_VOID,
+    BUILTIN_CHAR,
+    BUILTIN_INT,
+    BUILTIN_FLOAT,
+    BUILTIN_DOUBLE,
+    BUILTIN_BOOL,
+} builtin_base;
 
-typedef enum struct_union_kind {
-    SU_STRUCT,
-    SU_UNION,
-} struct_union_kind;
+typedef enum builtin_sign {
+    SIGN_NONE,
+    SIGN_SIGNED,
+    SIGN_UNSIGNED,
+} builtin_sign;
+
+typedef enum builtin_width {
+    WIDTH_DEFAULT,
+    WIDTH_SHORT,
+    WIDTH_LONG,
+    WIDTH_LONGLONG,
+} builtin_width;
+
+typedef struct builtin_type_t {
+    builtin_base base;
+    builtin_sign sign;
+    builtin_width width;
+} builtin_type_t;
 
 typedef struct type_specifier_t {
     type_specifier_kind kind;
 
     union {
-        struct {
-            builtin_types type;
-        } builtin;
+        struct { builtin_type_t type; } builtin;
 
         struct {
-            struct_union_kind kind;
-            u8 *identifier;
+            u8 *name;
+            ast_decl_t *fields;
+            bool isUnion;
         } struct_union;
+
+        struct {
+            u8 *name;
+            struct {
+                u8 *name;
+                ast_node_t *value;
+            } *enumerators;
+        } enum_type;
+
+        struct {
+            u8 *name;
+        } typedef_type;
     };
 } type_specifier_t;
 
-typedef struct specifier_t {
-    specifier_type type;
+typedef struct decl_specifiers_t {
+    storage_class_specifier storageClass;
+    u32 typeQualifier;
+    u32 functionSpecifier;
+    type_specifier_t *typeSpecifier;
+} decl_specifiers_t;
+
+typedef enum declarator_kind {
+    DECL_IDENTIFIER,
+    DECL_POINTER,
+    DECL_ARRAY,
+    DECL_FUNCTION,
+} declarator_kind;
+
+typedef struct ast_declarator_t ast_declarator_t;
+
+typedef struct ast_parameter_t {
+    decl_specifiers_t specifiers;
+    ast_declarator_t *declarator;
+} ast_parameter_t;
+
+typedef struct ast_declarator_t {
+    declarator_kind kind;
 
     union {
-        storage_specifier storageSpec;
+        struct { u8 *name; } identifier;
+        
+        struct {
+            struct ast_declarator_t *inner;
+            u32 qualifiers;
+        } pointer;
+
+        struct {
+            struct ast_declarator_t *inner;
+            ast_node_t *size;
+        } array;
+
+        struct {
+            struct ast_declarator_t *inner;
+            ast_parameter_t **parameters;
+        } function;
     };
-} specifier_t;
+} ast_declarator_t;
 
-typedef struct init_decl_t {
+typedef enum designator_kind {
+    DESIGNATOR_INDEX,
+    DESIGNATOR_FIELD,
+} designator_kind;
 
-} init_decl_t;
+typedef struct ast_designator_t {
+    designator_kind kind;
+
+    union {
+        ast_node_t *index;
+        u8 *field;
+    };
+} ast_designator_t;
+
+typedef struct ast_initializer_t ast_initializer_t;
+
+typedef struct ast_initializer_list_t {
+    ast_initializer_t *initializer;
+    ast_designator_t **designation;
+} ast_initializer_list_t;
+
+typedef enum initializer_kind {
+    INITIALIZER_EXPR,
+    INITIALIZER_LIST,
+} initializer_kind;
+
+typedef struct ast_initializer_t {
+    initializer_kind kind;
+
+    union {
+        ast_node_t *expr;
+        ast_initializer_list_t **list;
+    };
+} ast_initializer_t;
+
+typedef struct ast_init_declarator_t {
+    ast_declarator_t *declarator;
+    ast_initializer_t *initializer;
+} ast_init_declarator_t;
 
 typedef struct ast_decl_t {
-    specifier_t **specList;
-    init_decl_t **initDeclList;
+    decl_specifiers_t specifiers;
+    ast_init_declarator_t **initDeclList;
 } ast_decl_t;
-
-typedef struct ast_node_t ast_node_t;
 
 typedef struct ast_node_t {
     ast_node_type type;
@@ -155,10 +254,7 @@ typedef struct ast_node_t {
             ast_node_t **statements;
         } block;
 
-        struct {
-            u8 *name;
-            ast_node_t *value;
-        } decl;
+        ast_decl_t decl;
 
         struct {
             ast_node_t *fun;
@@ -228,7 +324,7 @@ typedef struct ast_node_t {
 } ast_node_t;
 
 ast_node_t *AstFromTokens(token_t *tokens);
-void PrintAst(ast_node_t *parent);
+void PrintAst(ast_node_t *parent, int depth);
 
 static bool PunctuationToAssignment(token_punctuation_type type, ast_assignment_op *op) {
     switch (type) {
@@ -313,7 +409,7 @@ static bool PunctuationToAdd(token_punctuation_type type, ast_binary_op *op) {
 
 static bool PunctuationToMult(token_punctuation_type type, ast_binary_op *op) {
     switch (type) {
-        case PUNCTUATION_MULT: *op = BINARY_OP_MULT; return true;
+        case PUNCTUATION_STAR: *op = BINARY_OP_MULT; return true;
         case PUNCTUATION_DIV: *op = BINARY_OP_DIV; return true;
         case PUNCTUATION_MOD: *op = BINARY_OP_MOD; return true;
         default: return false;
@@ -363,6 +459,115 @@ static u8 *UnaryToStr(ast_unary_op op) {
         case UNARY_OP_DECREMENT: return "--";
         case UNARY_OP_NOT: return "~";
         case UNARY_OP_LOGIC_NOT: return "!";
+
+        default: return "";
+    }
+}
+
+static bool KeywordToStorageClass(token_keyword_type type, storage_class_specifier *spec) {
+    switch (type) {
+        case KEYWORD_AUTO: *spec = STORAGE_SPEC_AUTO; return true;
+        case KEYWORD_EXTERN: *spec = STORAGE_SPEC_EXTERN; return true;
+        case KEYWORD_REGISTER: *spec = STORAGE_SPEC_REGISTER; return true;
+        case KEYWORD_STATIC: *spec = STORAGE_SPEC_STATIC; return true;
+        case KEYWORD_TYPEDEF: *spec = STORAGE_SPEC_TYPEDEF; return true;
+
+        default: return false;
+    }
+}
+
+static bool KeywordToTypeQualifier(token_keyword_type type, type_qualifier *qual) {
+    switch (type) {
+        case KEYWORD_CONST: *qual = TYPE_QUALIFIER_CONST; return true;
+        case KEYWORD_RESTRICT: *qual = TYPE_QUALIFIER_RESTRICT; return true;
+        case KEYWORD_VOLATILE: *qual = TYPE_QUALIFIER_VOLATILE; return true;
+
+        default: return false;
+    }
+}
+
+static bool KeywordToFunctionSpecifier(token_keyword_type type, function_specifier *spec) {
+    switch (type) {
+        case KEYWORD_INLINE: *spec = FUNCTION_SPECIFIER_INLINE; return true;
+
+        default: return false;
+    }
+}
+
+static bool KeywordToBuiltinType(token_keyword_type type, builtin_type_t *builtin) {    
+    switch (type) {
+        case KEYWORD_VOID: builtin->base = BUILTIN_VOID; return true;
+        case KEYWORD_CHAR: builtin->base = BUILTIN_CHAR; return true;
+        case KEYWORD_SHORT: builtin->width = WIDTH_SHORT; return true;
+        case KEYWORD_INT: builtin->base = BUILTIN_INT; return true;
+        case KEYWORD_LONG: builtin->width = WIDTH_LONG; return true;
+        case KEYWORD_FLOAT: builtin->base = BUILTIN_FLOAT; return true;
+        case KEYWORD_DOUBLE: builtin->base = BUILTIN_DOUBLE; return true;
+
+        case KEYWORD_SIGNED: builtin->sign = SIGN_SIGNED; return true;
+        case KEYWORD_UNSIGNED: builtin->sign = SIGN_UNSIGNED; return true;
+
+        default: return false;
+    }
+}
+
+static u8 *StorageClassToStr(storage_class_specifier spec) {
+    switch (spec) {
+        case STORAGE_SPEC_AUTO: return "auto";
+        case STORAGE_SPEC_EXTERN: return "extern";
+        case STORAGE_SPEC_REGISTER: return "register";
+        case STORAGE_SPEC_STATIC: return "static";
+        case STORAGE_SPEC_TYPEDEF: return "typedef";
+
+        default: return "";
+    }
+}
+
+static u8 *TypeQualifierToStr(type_qualifier qual) {
+    switch (qual) {
+        case TYPE_QUALIFIER_CONST: return "const";
+        case TYPE_QUALIFIER_RESTRICT: return "restrict";
+        case TYPE_QUALIFIER_VOLATILE: return "volatile";
+
+        default: return "";
+    }
+}
+
+static u8 *FunctionSpecifierToStr(function_specifier spec) {
+    switch (spec) {
+        case FUNCTION_SPECIFIER_INLINE: return "inline";
+
+        default: return "";
+    }
+}
+
+static u8 *SignToStr(builtin_sign sign) {
+    switch (sign) {
+        case SIGN_SIGNED: return "signed";
+        case SIGN_UNSIGNED: return "unsigned";
+
+        default: return "";
+    }
+}
+
+static u8 *WidthToStr(builtin_width width) {
+    switch (width) {
+        case WIDTH_SHORT: return "short";
+        case WIDTH_LONG: return "long";
+        case WIDTH_LONGLONG: return "long long";
+
+        default: return "";
+    }
+}
+
+static u8 *BaseToStr(builtin_base base) {
+    switch (base) {
+        case BUILTIN_VOID: return "void";
+        case BUILTIN_CHAR: return "char";
+        case BUILTIN_INT: return "int";
+        case BUILTIN_FLOAT: return "float";
+        case BUILTIN_DOUBLE: return "double";
+        case BUILTIN_BOOL: return "bool";
 
         default: return "";
     }

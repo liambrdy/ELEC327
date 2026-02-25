@@ -167,10 +167,6 @@ type-specifier ::=
   | char
   | short
   | int
-  | int8
-  | int16
-  | int32
-  | int64
   | long
   | float
   | double
@@ -234,10 +230,7 @@ declarator ::=
 direct-declarator ::=
     identifier
   | "(" declarator ")"
-  | direct-declarator "[" [ type-qualifier-list ] [ assignment-expression ] "]"
-  | direct-declarator "[" static [ type-qualifier-list ] assignment-expression "]"
-  | direct-declarator "[" type-qualifier-list static assignment-expression "]"
-  | direct-declarator "[" [ type-qualifier-list ] "*" "]"
+  | direct-declarator "[" [ assignment-expression ] "]"
   | direct-declarator "(" parameter-type-list ")"
 
 pointer ::=
@@ -269,10 +262,7 @@ abstract-declarator ::=
 
 direct-abstract-declarator ::=
     "(" abstract-declarator ")"
-  | direct-abstract-declarator "[" [ type-qualifier-list ] [ assignment-expression ] "]"
-  | direct-abstract-declarator "[" static [ type-qualifier-list ] assignment-expression "]"
-  | direct-abstract-declarator "[" type-qualifier-list static assignment-expression "]"
-  | direct-abstract-declarator "[" [ type-qualifier-list ] "*" "]"
+  | direct-abstract-declarator "[" [ assignment-expression ] "]"
   | [ direct-abstract-declarator ] "(" [ parameter-type-list ] ")"
 
 typedef-name ::=

@@ -1,1 +1,6 @@
-let a_again = add(a + b);
+static const unsigned int arr[10] = {
+    [0] = 12,
+    [1] = 15,
+    [15] = 22,
+}, b[12] = { 0 };
+inline int func(unsigned int a, int b);
