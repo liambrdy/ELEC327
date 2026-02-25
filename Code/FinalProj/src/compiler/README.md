@@ -288,3 +288,49 @@ designator ::=
     "[" constant-expression "]"
   | "." identifier
 ```
+
+## Statement Grammar
+```bnp
+statement ::=
+  labeled-statement
+  | compound-statement
+  | expression-statement
+  | selection-statement
+  | iteration-statement
+  | jump-statement
+
+jump-statement ::=
+  "goto" identifier ";"
+  | "continue" ";"
+  | "break" ";"
+  | "return" [ expression ] ";"
+
+compound-statement ::=
+  "{" [ declaration-list ] [ statement-list ] "}"
+
+declaration-list ::=
+  declaration
+  | declaration-list declaration
+
+statement-list ::=
+  statement
+  | statemtn-list statement
+
+expression-statement ::=
+  [ expression ] ";"
+
+iteration-statement ::=
+  "while" "(" expression ")" statement
+  | "do" statement "while" "(" expression ")" ";"
+  | "for" "(" [ expression ] ";" [ expression ] ";" [ expression ] ")" statement
+
+selection-statement ::=
+  "if" "(" expression ")" statement
+  | "if" "(" expression ")" statement "else" statement
+  | switch "(" expression ")" statement
+
+labeled-statement ::=
+  identifier ":" statement
+  | "case" constant-expression ":" statement
+  | "default" ":" statement
+```

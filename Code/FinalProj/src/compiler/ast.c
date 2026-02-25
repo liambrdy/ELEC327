@@ -284,25 +284,9 @@ ast_node_t *ParseExpression(parser_t *p) {
     return assnExpr;
 }
 
-ast_node_t *ParseVariableDeclaration(parser_t *p) {
-    token_t *name = Expect(p, TOKEN_IDENTIFIER, "expected an identifier for variable name");
-
-    ast_node_t *init = NULL;
-
-    if (MatchPunctuation(p, PUNCTUATION_EQUALS)) {
-        init = ParseConstantExpression(p);
-    }
-
-    ast_node_t *node = GetNewNode(AST_DECL);
-    // node->decl.name = name->lexeme;
-    // node->decl.value = init;
-
-    return node;
-}
-
-ast_node_t *ParseFunction(parser_t *p) {
-    return NULL;
-}
+// Declaration Parsing
+static ast_node_t *ParseDeclaration(parser_t *p);
+static ast_declarator_t *ParseDeclarator(parser_t *p, bool isAbstract);
 
 static bool MergeBuiltinType(builtin_type_t *dstType, builtin_type_t *srcType) {
     if (srcType->base != BUILTIN_NONE) {
@@ -348,15 +332,69 @@ void ParseTypeSpecifier(parser_t *p, decl_specifiers_t *spec) {
     }
 
     builtin_type_t type = {0};
+
     if (KeywordToBuiltinType(t->keywordType, &type)) {
         spec->typeSpecifier->kind = SPECIFIER_BUILTIN;
 
         if (!MergeBuiltinType(&spec->typeSpecifier->builtin.type, &type)) {
             return;
         }
-    }
+    } else if (MatchKeyword(p, KEYWORD_STRUCT) || MatchKeyword(p, KEYWORD_UNION)) {
+        spec->typeSpecifier->kind = SPECIFIER_STRUCT_UNION;
+        spec->typeSpecifier->struct_union.isUnion = Previous(p)->keywordType == KEYWORD_UNION;
+        
+        if (Match(p, TOKEN_IDENTIFIER)) {
+            spec->typeSpecifier->struct_union.name = Previous(p)->lexeme;
+        }
 
-    // TODO Implement struct/union and enum type specifiers
+        if (MatchPunctuation(p, PUNCTUATION_OPEN_CURLY)) {
+            spec->typeSpecifier->struct_union.fields = DArrayCreate(ast_decl_t);
+            do {
+                ast_node_t *decl = ParseDeclaration(p);
+                DArrayPush(spec->typeSpecifier->struct_union.fields, decl->decl);
+
+                t = Peek(p);
+                if (t->type == TOKEN_PUNCTUATION && t->puncType == PUNCTUATION_CLOSE_CURLY) {
+                    break;
+                }
+            } while (1);
+        } else if (!spec->typeSpecifier->struct_union.name) {
+            printf("expects identifier if no struct declaration");
+            return;
+        }
+    } else if (MatchKeyword(p, KEYWORD_ENUM)) {
+        spec->typeSpecifier->kind = SPECIFIER_ENUM;
+
+        if (Match(p, TOKEN_IDENTIFIER)) {
+            spec->typeSpecifier->enum_type.name = Previous(p)->lexeme;
+        }
+
+        if (MatchPunctuation(p, PUNCTUATION_OPEN_CURLY)) {
+            spec->typeSpecifier->enum_type.enumerators = DArrayCreate(ast_enum_item_t);
+            do {
+                ast_enum_item_t item = {0};
+
+                token_t *name = Expect(p, TOKEN_IDENTIFIER, "expects identifier for enum element name");
+                item.name = name->lexeme;
+
+                if (MatchPunctuation(p, PUNCTUATION_EQUALS)) {
+                    item.value = ParseConstantExpression(p);
+                }
+
+                DArrayPush(spec->typeSpecifier->enum_type.enumerators, item);
+
+                if (!MatchPunctuation(p, PUNCTUATION_COMMA))
+                    break;
+
+                t = Peek(p);
+                if (t->type == TOKEN_PUNCTUATION && t->puncType == PUNCTUATION_CLOSE_CURLY)
+                    break;
+            } while (1);
+        } else if (!spec->typeSpecifier->enum_type.name) {
+            printf("expects identifier if no enum declaration");
+            return;
+        }
+    }
 }
 
 decl_specifiers_t *ParseDeclarationSpecifiers(parser_t *p) {
@@ -409,8 +447,6 @@ decl_specifiers_t *ParseDeclarationSpecifiers(parser_t *p) {
         advancedOnce = true;
     }
 }
-
-static ast_declarator_t *ParseDeclarator(parser_t *p, bool isAbstract);
 
 ast_parameter_t *ParseParameterDeclaration(parser_t *p) {
     decl_specifiers_t *specifiers = ParseDeclarationSpecifiers(p);
@@ -648,6 +684,22 @@ ast_node_t *ParseDeclaration(parser_t *p) {
     if (IsDeclaratorStart(p)) {
         do {
             ast_init_declarator_t *declarator = ParseInitDeclarator(p);
+
+            if (declSpecifiers->storageClass == STORAGE_SPEC_TYPEDEF) {
+                ast_declarator_t *decl = declarator->declarator;
+                while (decl->kind != DECL_IDENTIFIER) {
+                    switch (decl->kind) {
+                        case DECL_ARRAY: decl = decl->array.inner; break;
+                        case DECL_POINTER: decl = decl->pointer.inner; break;
+                        case DECL_FUNCTION: decl = decl->function.inner; break;
+
+                        default: break;
+                    }
+                }
+
+                InsertSymbol(p, decl->identifier.name, SYMBOL_TYPEDEF);
+            }
+
             DArrayPush(new->decl.initDeclList, declarator);
         } while (MatchPunctuation(p, PUNCTUATION_COMMA));
     }
@@ -656,6 +708,8 @@ ast_node_t *ParseDeclaration(parser_t *p) {
 
     return new;
 }
+
+
 
 ast_node_t *AstFromTokens(token_t *tokens) {
     ast_node_t *program = (ast_node_t *)malloc(sizeof(ast_node_t));
@@ -682,7 +736,8 @@ ast_node_t *AstFromTokens(token_t *tokens) {
     return program;
 }
 
-void PrintDeclSpecifiers(decl_specifiers_t *specifiers) {
+// Printing Stuff
+void PrintDeclSpecifiers(decl_specifiers_t *specifiers, int depth) {
     bool needSpace = false;
 
     if (specifiers->storageClass != STORAGE_SPEC_NONE) {
@@ -742,16 +797,49 @@ void PrintDeclSpecifiers(decl_specifiers_t *specifiers) {
         } break;
 
         case SPECIFIER_STRUCT_UNION: {
+            if (needSpace)
+                printf(" ");
             printf("%s ", spec->struct_union.isUnion ? "union" : "struct");
             if (spec->struct_union.name) {
-                printf("%s", spec->struct_union.name);
+                printf("%s ", spec->struct_union.name);
             }
 
-            // TODO Implement struct/union printing
+            printf("{\n");
+
+            int fieldCount = DArrayLength(spec->struct_union.fields);
+            for (int i = 0; i < fieldCount; i++) {
+                ast_node_t node = {};
+                node.type = AST_DECL;
+                node.decl = spec->struct_union.fields[i];
+
+                PrintAst(&node, depth + 1);
+                printf(";\n");
+            }
+            printf("%*s}", (depth + 1) * 4, "");
         } break;
 
         case SPECIFIER_ENUM: {
-            // TODO Implement enum printing
+            if (needSpace)
+                printf(" ");
+            printf("enum ");
+            if (spec->enum_type.name) {
+                printf("%s ", spec->enum_type.name);
+            }
+
+            printf("{\n");
+            int enumCount = DArrayLength(spec->enum_type.enumerators);
+            for (int i = 0; i < enumCount; i++) {
+                printf("%*s%s", (depth + 2)*4, "", spec->enum_type.enumerators[i].name);
+
+                if (spec->enum_type.enumerators[i].value) {
+                    printf(" = ");
+                    PrintAst(spec->enum_type.enumerators[i].value, 0);
+                }
+
+                printf("\n");
+            }
+
+            printf("%*s}", (depth + 1) * 4, "");
         } break;
 
         case SPECIFIER_TYPEDEF_NAME: {
@@ -762,7 +850,7 @@ void PrintDeclSpecifiers(decl_specifiers_t *specifiers) {
     }
 }
 
-void PrintAstDeclarator(ast_declarator_t *decl) {
+void PrintAstDeclarator(ast_declarator_t *decl, int depth) {
     switch (decl->kind) {
         case DECL_IDENTIFIER: {
             printf("%s", decl->identifier.name);
@@ -775,25 +863,25 @@ void PrintAstDeclarator(ast_declarator_t *decl) {
                     printf(" %s", TypeQualifierToStr((type_qualifier)(1 << i)));
                 }
             }
-            PrintAstDeclarator(decl->pointer.inner);
+            PrintAstDeclarator(decl->pointer.inner, depth);
         } break;
 
         case DECL_ARRAY: {
-            PrintAstDeclarator(decl->array.inner);
+            PrintAstDeclarator(decl->array.inner, depth);
             printf("[");
             PrintAst(decl->array.size, 0);
             printf("]");
         } break;
 
         case DECL_FUNCTION: {
-            PrintAstDeclarator(decl->function.inner);
+            PrintAstDeclarator(decl->function.inner, depth);
             printf("(");
             int paramCount = DArrayLength(decl->function.parameters);
             for (int i = 0; i < paramCount; i++) {
                 ast_parameter_t *param = decl->function.parameters[i];
-                PrintDeclSpecifiers(&param->specifiers);
+                PrintDeclSpecifiers(&param->specifiers, depth);
                 printf(" ");
-                PrintAstDeclarator(param->declarator);
+                PrintAstDeclarator(param->declarator, depth);
                 
                 if (i < paramCount - 1) {
                     printf(", ");
@@ -843,18 +931,10 @@ void PrintAstInitializer(ast_initializer_t *initializer) {
 }
 
 void PrintAst(ast_node_t *parent, int depth) {
-    u8 *tabs = NULL;
-    if (depth > 0) {
-        tabs = (u8 *)malloc(depth);
-        for (int i = 0; i < depth; i++)
-            tabs[i] = '\t';
-    }
-
     switch (parent->type) {
         case AST_PROGRAM: {
             printf("[\n");
             for (int i = 0; i < DArrayLength(parent->program.decls); i++) {
-                printf("\t");
                 PrintAst(parent->program.decls[i], depth + 1);
 
                 if (i < DArrayLength(parent->program.decls) - 1) {
@@ -870,14 +950,20 @@ void PrintAst(ast_node_t *parent, int depth) {
         } break;
 
         case AST_DECL: {
-            printf("Declaration(");
-            PrintDeclSpecifiers(&parent->decl.specifiers);
-            printf("\n%s\t", tabs);
-
+            printf("%*sDeclaration(", (depth + 1) * 4, "");
+            PrintDeclSpecifiers(&parent->decl.specifiers, depth);
             int declCount = DArrayLength(parent->decl.initDeclList);
+
+            if (declCount > 1)
+                printf("\n");
+            else
+                printf(" ");
+
             for (int i = 0; i < declCount; i++) {
                 ast_init_declarator_t *decl = parent->decl.initDeclList[i];
-                PrintAstDeclarator(decl->declarator);
+                if (declCount > 1)
+                    printf("%*s", (depth + 2) * 4, "");
+                PrintAstDeclarator(decl->declarator, depth);
 
                 if (decl->initializer) {
                     printf(" = { ");
@@ -886,7 +972,7 @@ void PrintAst(ast_node_t *parent, int depth) {
                 }
 
                 if (i < declCount - 1) {
-                    printf(",\n%s\t", tabs);
+                    printf(",\n");
                 }
             }
             printf(")");

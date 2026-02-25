@@ -127,6 +127,11 @@ typedef struct builtin_type_t {
     builtin_width width;
 } builtin_type_t;
 
+typedef struct ast_enum_item_t {
+    u8 *name;
+    ast_node_t *value;
+} ast_enum_item_t;
+
 typedef struct type_specifier_t {
     type_specifier_kind kind;
 
@@ -141,10 +146,7 @@ typedef struct type_specifier_t {
 
         struct {
             u8 *name;
-            struct {
-                u8 *name;
-                ast_node_t *value;
-            } *enumerators;
+            ast_enum_item_t *enumerators;
         } enum_type;
 
         struct {

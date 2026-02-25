@@ -16,7 +16,7 @@ typedef struct hash_item_t {
 #define BUCKET_COUNT 256
 
 typedef struct hash_table_t {
-    hash_item_t data[BUCKET_COUNT];
+    hash_item_t *data[BUCKET_COUNT];
 
     u32 dataSize;
 } hash_table_t;

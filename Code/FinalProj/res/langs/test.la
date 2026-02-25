@@ -1,6 +1,21 @@
-static const unsigned int arr[10] = {
+static const unsigned int *arr[10] = {
     [0] = 12,
     [1] = 15,
     [15] = 22,
-}, b[12] = { 0 };
-inline int func(unsigned int a, int b);
+}, *volatile *b[12] = { 0 };
+inline int **func(unsigned int a, int b);
+struct {
+    int one;
+    int two;
+} a;
+typedef union new_union {
+    int a;
+    int b;
+    int c;
+} new_union_typedef;
+enum types {
+    TYPE_1 = 1 << 0,
+    TYPE_2 = 1 << 1,
+    TYPE_3 = 1 << 2,
+} name;
+new_union_typedef var;

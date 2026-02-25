@@ -29,23 +29,32 @@ static u32 Hash(u8 *key) {
 void HashInsert(hash_table_t *table, u8 *key, void *data) {
     u32 bucket = Hash(key) % BUCKET_COUNT;
     
-    hash_item_t *current = table->data + bucket;
-    while (current->nextItem != NULL) {
+    hash_item_t *current = table->data[bucket];
+    while (current != NULL) {
+        if (strcmp(current->key, key) == 0) {
+            memcpy(current->data, data, table->dataSize);
+            return;
+        }
+
         current = current->nextItem;
     }
 
     hash_item_t *newItem = (hash_item_t *)malloc(sizeof(hash_item_t));
+    newItem->key = (u8 *)malloc(strlen(key) + 1);
     strcpy(newItem->key, key);
+
+    newItem->data = malloc(table->dataSize);
     memcpy(newItem->data, data, table->dataSize);
 
-    current->nextItem = newItem;
+    newItem->nextItem = table->data[bucket];
+    table->data[bucket] = newItem;
 }
 
 bool HashContains(hash_table_t *table, u8 *key) {
     u32 bucket = Hash(key) % BUCKET_COUNT;
 
-    hash_item_t *current = table->data + bucket;
-    while (current->nextItem != NULL) {
+    hash_item_t *current = table->data[bucket];
+    while (current != NULL) {
         if (strcmp(key, current->key) == 0) {
             return true;
         }
@@ -59,8 +68,8 @@ bool HashContains(hash_table_t *table, u8 *key) {
 void *HashGet(hash_table_t *table, u8 *key) {
     u32 bucket = Hash(key) % BUCKET_COUNT;
 
-    hash_item_t *current = table->data + bucket;
-    while (current->nextItem != NULL) {
+    hash_item_t *current = table->data[bucket];    
+    while (current != NULL) {
         if (strcmp(key, current->key) == 0) {
             return current->data;
         }
