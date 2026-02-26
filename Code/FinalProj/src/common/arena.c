@@ -2,6 +2,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <memory.h>
 
 arena_t *globalArena = 0;
 
@@ -11,6 +12,8 @@ arena_t *CreateArena(u8 *mem, u64 memSize) {
     arena->mem = mem;
     arena->capacity = memSize;
     arena->pos = 0;
+
+    memset(arena->mem, 0, memSize);
 
     return arena;
 }

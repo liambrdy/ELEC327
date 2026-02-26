@@ -47,10 +47,8 @@ typedef enum ast_node_type {
     AST_PROGRAM,
     AST_BLOCK,
     AST_DECL,
+    AST_STATEMENT,
     AST_FUNC_CALL,
-    AST_RETURN,
-    AST_IF,
-    AST_WHILE,
     
     AST_TERNARY_EXPR,
     AST_BINARY_EXPR,
@@ -244,6 +242,123 @@ typedef struct ast_decl_t {
     ast_init_declarator_t **initDeclList;
 } ast_decl_t;
 
+typedef struct ast_statement_t ast_statement_t;
+
+typedef enum statement_kind {
+    STATEMENT_LABELED,
+    STATEMENT_COMPOUND,
+    STATEMENT_EXPRESSION,
+    STATEMENT_SELECTION,
+    STATEMENT_ITERATION,
+    STATEMENT_JUMP,
+} statement_kind;
+
+typedef enum labeled_statement_kind {
+    LABELED_STATEMEN_IDENTIFIER,
+    LABELED_STATEMENT_CASE,
+    LABELED_STATEMENT_DEFAULT,
+} labeled_statement_kind;
+
+typedef struct ast_labeled_statement_t {
+    labeled_statement_kind kind;
+    ast_node_t *inner;
+
+    union {
+        struct {
+            u8 *ident;
+        } identifier;
+
+        struct {
+            ast_node_t *label;
+        } label_case;
+    };
+} ast_labeled_statement_t;
+
+typedef enum selection_statement_kind {
+    SELECTION_STATEMENT_IF,
+    SELECTION_STATEMENT_SWITCH,
+} selection_statement_kind;
+
+typedef struct ast_selection_statement_t {
+    selection_statement_kind kind;
+
+    union {
+        struct {
+            ast_node_t *condition;
+            ast_node_t *ifStatement;
+            ast_node_t *elseStatement;
+        } if_statement;
+
+        struct {
+            ast_node_t *condition;
+            ast_node_t *statement;
+        } switch_statement;
+    };
+} ast_selection_statement_t;
+
+typedef enum iteration_statement_kind {
+    ITERATION_STATEMENT_WHILE,
+    ITERATION_STATEMENT_FOR,
+} iteration_statement_kind;
+
+typedef struct ast_iteration_statement_t {
+    iteration_statement_kind kind;
+
+    union {
+        struct {
+            ast_node_t *condition;
+            ast_node_t *statement;
+            bool hasDo;
+        } while_statement;
+
+        struct {
+            ast_node_t *initExpr;
+            ast_node_t *conditionExpr;
+            ast_node_t *updationExpr;
+            ast_node_t *statement;
+        } for_statement;
+    };
+} ast_iteration_statement_t;
+
+typedef enum jump_statement_kind {
+    JUMP_STATEMENT_GOTO,
+    JUMP_STATEMENT_CONTINUE,
+    JUMP_STATEMENT_BREAK,
+    JUMP_STATEMENT_RETURN,
+} jump_statement_kind;
+
+typedef struct ast_jump_statement_t {
+    jump_statement_kind kind;
+
+    union {
+        struct { u8 *identifier; } goto_statement;
+        struct { ast_node_t *expr; } return_statement;
+    };
+} ast_jump_statement_t;
+
+typedef struct ast_statement_t {
+    statement_kind kind;
+
+    union {
+        ast_labeled_statement_t labeled;
+
+        struct {
+            ast_node_t **declarations;
+            ast_node_t **statements;
+        } compound;
+
+        struct {
+            ast_node_t *expression;
+        } expression;
+
+        ast_selection_statement_t selection;
+
+        ast_iteration_statement_t iteration;
+
+        ast_jump_statement_t jump;
+    };
+} ast_statement_t;
+
 typedef struct ast_node_t {
     ast_node_type type;
 
@@ -257,26 +372,12 @@ typedef struct ast_node_t {
         } block;
 
         ast_decl_t decl;
+        ast_statement_t statement;
 
         struct {
             ast_node_t *fun;
             ast_node_t **params;
         } func_call;
-
-        struct {
-            ast_node_t *value;
-        } return_stmt;
-
-        struct {
-            ast_node_t *condition;
-            ast_node_t *then_branch;
-            ast_node_t *else_branch;
-        } if_stmt;
-
-        struct {
-            ast_node_t *condition;
-            ast_node_t *block;
-        } while_stmt;
 
         struct {
             ast_node_t *condition;
@@ -573,6 +674,10 @@ static u8 *BaseToStr(builtin_base base) {
 
         default: return "";
     }
+}
+
+static u8 *AssignToStr(ast_assignment_op op) {
+    
 }
 
 #endif

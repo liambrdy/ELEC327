@@ -14,6 +14,7 @@ typedef struct lookup_result_t {
         token_literal_type litType;
         token_punctuation_type puncType;
         token_keyword_type keywordType;
+        pre_type preType;
 
         int type;
     };
@@ -27,6 +28,7 @@ typedef struct lookup_map_t {
         token_literal_type litType;
         token_punctuation_type puncType;
         token_keyword_type keywordType;
+        pre_type preType;
 
         int type;
     };
@@ -54,6 +56,18 @@ lookup_map_t keywords[] = {
     {"restrict", KEYWORD_RESTRICT},
     {"volatile", KEYWORD_VOLATILE},
     {"inline", KEYWORD_INLINE},
+    {"goto", KEYWORD_GOTO},
+    {"continue", KEYWORD_CONTINUE},
+    {"break", KEYWORD_BREAK},
+    {"return", KEYWORD_RETURN},
+    {"while", KEYWORD_WHILE},
+    {"do", KEYWORD_DO},
+    {"for", KEYWORD_FOR},
+    {"if", KEYWORD_IF},
+    {"else", KEYWORD_ELSE},
+    {"switch", KEYWORD_SWITCH},
+    {"case", KEYWORD_CASE},
+    {"default", KEYWORD_DEFAULT},
 };
 
 lookup_map_t punctuations[] = {
@@ -97,8 +111,21 @@ lookup_map_t punctuations[] = {
     {"<<", PUNCTUATION_SHL},
     {">>", PUNCTUATION_SHR},
 
+    {"//", PUNCTUATION_COMMENT},
+
     {"++", PUNCTUATION_INCREMENT},
     {"--", PUNCTUATION_DECREMENT},
+};
+
+lookup_map_t pres[] = {
+    {"if", PRE_IF},
+    {"ifdef", PRE_IFDEF},
+    {"ifndef", PRE_IFNDEF},
+    {"elif", PRE_ELIF},
+    {"else", PRE_ELSE},
+    {"endif", PRE_ENDIF},
+    {"define", PRE_DEFINE},
+    {"include", PRE_INCLUDE},
 };
 
 lookup_result_t LookupStr(u8* str, int typeCount, lookup_map_t *lookupMap) {
@@ -131,7 +158,6 @@ void InsertNode(trie_node_t *node, u8 *str, token_punctuation_type type) {
     for (int i = 0; i < strlen(str); i++) {
         if (!current->children[str[i]]) {
             trie_node_t *newNode = PushStruct(globalArena, trie_node_t);
-            memset(newNode, 0, sizeof(trie_node_t));
 
             newNode->type = PUNCTUATION_COUNT;
 
@@ -142,6 +168,13 @@ void InsertNode(trie_node_t *node, u8 *str, token_punctuation_type type) {
     }
 
     current->type = type;
+}
+
+u8 *GetWord(u8 *buffer, int *cursor) {
+    int start = *cursor;
+    while (isalnum(buffer[(*cursor) + 1]) || buffer[(*cursor) + 1] == '_') (*cursor)++;
+
+    return substring(buffer, start, *cursor);
 }
 
 token_t *tokenize(u8 *buffer, int bufferSize) {
@@ -158,10 +191,7 @@ token_t *tokenize(u8 *buffer, int bufferSize) {
     int cursor = 0;
     while (cursor < bufferSize) {
         if (isalpha(buffer[cursor]) || buffer[cursor] == '_') {
-            int start = cursor;
-            while (isalnum(buffer[cursor + 1]) || buffer[cursor + 1] == '_') cursor++;
-
-            u8 *lexeme = substring(buffer, start, cursor);
+            u8 *lexeme = GetWord(buffer, &cursor);
 
             lookup_result_t res = LookupStr(lexeme, KEYWORD_COUNT, keywords);
             if (res.found) {
@@ -222,7 +252,13 @@ token_t *tokenize(u8 *buffer, int bufferSize) {
                 }
             }
             
-            if (lastType != PUNCTUATION_COUNT) {
+            if (lastType == PUNCTUATION_COMMENT) {
+                cursor = lastPos;
+                while (buffer[cursor++] != '\n') {
+                    if (buffer[cursor] == '\0')
+                        break;
+                }
+            } else if (lastType != PUNCTUATION_COUNT) {
                 token_t punctToken = {0};
                 punctToken.type = TOKEN_PUNCTUATION;
                 punctToken.puncType = lastType;
@@ -254,6 +290,60 @@ token_t *tokenize(u8 *buffer, int bufferSize) {
                     case ' ': {
                         while (buffer[cursor] == ' ') cursor++;
                     } break;
+
+                    case '#': {
+                        if (cursor != 0 && buffer[cursor - 1] != '\n') {
+                            printf("Preprocessor must be at beginning of line\n");
+                            return NULL;
+                        }
+
+                        cursor++;
+                        u8 *lexeme = GetWord(buffer, &cursor);
+                        lookup_result_t res = LookupStr(lexeme, PRE_COUNT, pres);
+                        if (!res.found) {
+                            printf("Must have preprocessor after hash: unknown %s\n", lexeme);
+                        }
+
+                        switch (res.preType) {
+                            case PRE_IF: {
+                                
+                            } break;
+
+                            case PRE_IFDEF: {
+
+                            } break;
+
+                            case PRE_IFNDEF: {
+
+                            } break;
+
+                            case PRE_ELIF: {
+
+                            } break;
+
+                            case PRE_ELSE: {
+
+                            } break;
+
+                            case PRE_ENDIF: {
+
+                            } break;
+
+                            case PRE_DEFINE: {
+
+                            } break;
+
+                            case PRE_INCLUDE: {
+
+                            } break;
+
+                            default: break;
+                        }
+
+                        while (buffer[cursor] != '\n') {
+                            cursor++;
+                        }
+                    }
 
                     case '\n': {
                         cursor++;

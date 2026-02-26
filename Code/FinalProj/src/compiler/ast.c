@@ -273,6 +273,8 @@ ast_node_t *ParseAssignmentExpression(parser_t *p) {
             newExpr->assign_op.op = op;
             newExpr->assign_op.left = condExpr;
             newExpr->assign_op.right = ParseAssignmentExpression(p);
+
+            return newExpr;
         }
     }
 
@@ -710,6 +712,152 @@ ast_node_t *ParseDeclaration(parser_t *p) {
     return new;
 }
 
+// Statement Parsing
+
+statement_kind GetNextStatementKind(parser_t *p) {
+    token_t *t = Peek(p);
+
+    if (t->type == TOKEN_PUNCTUATION && t->puncType == PUNCTUATION_OPEN_CURLY) {
+        return STATEMENT_COMPOUND;
+    }
+
+    if (t->type == TOKEN_KEYWORD) {
+        switch (t->keywordType) {
+            case KEYWORD_CONTINUE:
+            case KEYWORD_BREAK:
+            case KEYWORD_RETURN: return STATEMENT_JUMP;
+
+            case KEYWORD_WHILE:
+            case KEYWORD_DO:
+            case KEYWORD_FOR: return STATEMENT_ITERATION;
+
+            case KEYWORD_IF:
+            case KEYWORD_SWITCH: return STATEMENT_SELECTION;
+
+            case KEYWORD_CASE:
+            case KEYWORD_DEFAULT: return STATEMENT_LABELED;
+
+            default: break;
+        }
+    }
+
+    return STATEMENT_EXPRESSION;
+}
+
+bool IsTypeSpecifier(parser_t *p) {
+    token_t *t = Peek(p);
+    builtin_type_t type;
+
+    if (t->type == TOKEN_KEYWORD) {
+        if (KeywordToBuiltinType(t->keywordType, &type)) return true;
+        switch (t->keywordType) {
+            case KEYWORD_STRUCT:
+            case KEYWORD_UNION:
+            case KEYWORD_ENUM: return true;
+
+            default: return false;
+        }
+    } else if (t->type == TOKEN_IDENTIFIER) {
+        if (HashContains(p->scope->symbols, t->lexeme)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool IsDeclarationStart(parser_t *p) {
+    token_t *t = Peek(p);
+
+    storage_class_specifier spec;
+    type_qualifier qual;
+
+    if (t->type == TOKEN_KEYWORD) {
+        if (KeywordToStorageClass(t->keywordType, &spec)) return true;
+        if (KeywordToTypeQualifier(t->keywordType, &qual)) return true;
+    }
+
+    if (IsTypeSpecifier(p)) return true;
+
+    return false;
+}
+
+ast_node_t *ParseStatement(parser_t *p) {
+    ast_node_t *statement = GetNewNode(AST_STATEMENT);
+    statement->statement.kind = GetNextStatementKind(p);
+
+    switch (statement->statement.kind) {
+        case STATEMENT_LABELED: {
+
+        } break;
+
+        case STATEMENT_COMPOUND: {
+            ExpectPunctuation(p, PUNCTUATION_OPEN_CURLY, "expects open curly bracket for compound statement");
+            while (!MatchPunctuation(p, PUNCTUATION_CLOSE_CURLY)) {
+                if (IsDeclarationStart(p)) {
+                    if (!statement->statement.compound.declarations)
+                        statement->statement.compound.declarations = DArrayCreate(ast_node_t *);
+
+                    ast_node_t *decl = ParseDeclaration(p);
+                    DArrayPush(statement->statement.compound.declarations, decl);
+                } else {
+                    if (!statement->statement.compound.statements)
+                        statement->statement.compound.statements = DArrayCreate(ast_node_t *);
+
+                    ast_node_t *s = ParseStatement(p);
+                    DArrayPush(statement->statement.compound.statements, s);
+                }
+            }
+        } break;
+
+        case STATEMENT_EXPRESSION: {
+            if (!MatchPunctuation(p, PUNCTUATION_SEMICOLON)) {
+                statement->statement.expression.expression = ParseExpression(p);
+                ExpectPunctuation(p, PUNCTUATION_SEMICOLON, "Expects semicolon after expression statement");
+            }
+        } break;
+
+        case STATEMENT_SELECTION: {
+            if (MatchKeyword(p, KEYWORD_IF)) {
+                statement->statement.selection.kind = SELECTION_STATEMENT_IF;
+
+                ExpectPunctuation(p, PUNCTUATION_OPEN_PAREN, "expects open parenthese for if condition expression");
+                statement->statement.selection.if_statement.condition = ParseExpression(p);
+                ExpectPunctuation(p, PUNCTUATION_CLOSE_PAREN, "expects close parenthese for if condition expression");
+
+                statement->statement.selection.if_statement.ifStatement = ParseStatement(p);
+
+                if (MatchKeyword(p, KEYWORD_ELSE)) {
+                    statement->statement.selection.if_statement.elseStatement = ParseStatement(p);
+                }
+            } else if (MatchKeyword(p, KEYWORD_SWITCH)) {
+                statement->statement.selection.kind = SELECTION_STATEMENT_SWITCH;
+
+                ExpectPunctuation(p, PUNCTUATION_OPEN_PAREN, "expects open parenthese for switch condition expression");
+                statement->statement.selection.switch_statement.condition = ParseExpression(p);
+                ExpectPunctuation(p, PUNCTUATION_CLOSE_PAREN, "expects close parenthese for switch condition expression");
+
+                statement->statement.selection.switch_statement.statement = ParseStatement(p);
+            } else {
+                printf("Expects `if` or `switch` in selection statement");
+                return NULL;
+            }
+        } break;
+
+        case STATEMENT_ITERATION: {
+
+        } break;
+
+        case STATEMENT_JUMP: {
+
+        } break;
+
+        default: break;
+    }
+
+    return statement;
+}
+
 ast_node_t *AstFromTokens(token_t *tokens) {
     ast_node_t *program = PushStruct(globalArena, ast_node_t);
     program->type = AST_PROGRAM;
@@ -724,12 +872,12 @@ ast_node_t *AstFromTokens(token_t *tokens) {
     PushScope(&p);
     
     while (!Match(&p, TOKEN_EOF)) {
-        ast_node_t *decl = ParseDeclaration(&p);
-        if (!decl) {
+        ast_node_t *statement = ParseStatement(&p);
+        if (!statement) {
             return NULL;
         }
 
-        DArrayPush(program->program.decls, decl);
+        DArrayPush(program->program.decls, statement);
     }
 
     return program;
@@ -929,6 +1077,75 @@ void PrintAstInitializer(ast_initializer_t *initializer) {
     }
 }
 
+void PrintAstStatement(ast_statement_t *statement, int depth) {
+    printf("%*sStatement(", depth * 4, "");
+    switch (statement->kind) {
+        case STATEMENT_COMPOUND: {
+            printf("{\n");
+            
+            if (statement->compound.declarations) {
+                int declCount = DArrayLength(statement->compound.declarations);
+                for (int i = 0; i < declCount; i++) {
+                    PrintAst(statement->compound.declarations[i], depth + 1);
+                    if (i < declCount - 1) {
+                        printf(",\n");
+                    }
+                }
+            }
+            
+            if (statement->compound.statements) {
+                if (statement->compound.declarations) {
+                    printf("\n");
+                }
+
+                int statementCount = DArrayLength(statement->compound.statements);
+                for (int i = 0; i < statementCount; i++) {
+                    PrintAst(statement->compound.statements[i], depth + 1);
+                    if (i < statementCount - 1) {
+                        printf(",\n");
+                    }
+                }
+            }
+        } break;
+
+        case STATEMENT_LABELED: {
+
+        } break;
+
+        case STATEMENT_EXPRESSION: {
+            PrintAst(statement->expression.expression, depth + 1);
+        } break;
+
+        case STATEMENT_SELECTION: {
+            if (statement->selection.kind == SELECTION_STATEMENT_IF) {
+                printf("\n%*sif (", (depth + 1) * 4, "");
+                PrintAst(statement->selection.if_statement.condition, depth + 2);
+                printf(") {\n");
+                PrintAst(statement->selection.if_statement.ifStatement, depth + 2);
+                printf("\n%*s}", (depth + 1) * 4, "");
+
+                if (statement->selection.if_statement.elseStatement) {
+                    printf(" else {\n");
+                    PrintAst(statement->selection.if_statement.elseStatement, depth + 2);
+                    printf("\n%*s}", (depth + 1) * 4, "");
+                }
+            }
+        } break;
+
+        case STATEMENT_ITERATION: {
+
+        } break;
+
+        case STATEMENT_JUMP: {
+
+        } break;
+
+        default: break;
+    }
+
+    printf(")");
+}
+
 void PrintAst(ast_node_t *parent, int depth) {
     switch (parent->type) {
         case AST_PROGRAM: {
@@ -977,6 +1194,10 @@ void PrintAst(ast_node_t *parent, int depth) {
             printf(")");
         } break;
 
+        case AST_STATEMENT: {
+            PrintAstStatement(&parent->statement, depth + 1);
+        } break;
+
         case AST_FUNC_CALL: {
             printf("FunCall(");
             PrintAst(parent->func_call.fun, depth + 1);
@@ -990,18 +1211,6 @@ void PrintAst(ast_node_t *parent, int depth) {
                 }
             }
             printf("])");
-        } break;
-
-        case AST_RETURN: {
-
-        } break;
-
-        case AST_IF: {
-
-        } break;
-
-        case AST_WHILE: {
-
         } break;
 
         case AST_TERNARY_EXPR: {
@@ -1029,7 +1238,7 @@ void PrintAst(ast_node_t *parent, int depth) {
         } break;
 
         case AST_ASSIGN_EXPR: {
-
+            
         } break;
 
         case AST_INDEX: {

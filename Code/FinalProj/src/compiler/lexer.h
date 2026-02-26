@@ -63,6 +63,8 @@ typedef enum token_punctuation_type {
     PUNCTUATION_SHL,
     PUNCTUATION_SHR,
 
+    PUNCTUATION_COMMENT,
+
     PUNCTUATION_COUNT,
 } token_punctuation_type;
 
@@ -93,8 +95,33 @@ typedef enum token_keyword_type {
 
     KEYWORD_INLINE,
 
+    KEYWORD_GOTO,
+    KEYWORD_CONTINUE,
+    KEYWORD_BREAK,
+    KEYWORD_RETURN,
+    KEYWORD_WHILE,
+    KEYWORD_DO,
+    KEYWORD_FOR,
+    KEYWORD_IF,
+    KEYWORD_ELSE,
+    KEYWORD_SWITCH,
+    KEYWORD_CASE,
+    KEYWORD_DEFAULT,
+
     KEYWORD_COUNT,
 } token_keyword_type;
+
+typedef enum pre_type {
+    PRE_IF,
+    PRE_IFDEF,
+    PRE_IFNDEF,
+    PRE_ELIF,
+    PRE_ELSE,
+    PRE_ENDIF,
+    PRE_DEFINE,
+    PRE_INCLUDE,
+    PRE_COUNT,
+} pre_type;
 
 typedef struct trie_node_t {
     token_punctuation_type type;
