@@ -83,7 +83,7 @@ void EnableTimerA1PWM(void);
 /*
  * @brief Enables TIMA1 PWM output
  */
-void DisableimerA1PWM(void);
+void DisableTimerA1PWM(void);
 
 
 
