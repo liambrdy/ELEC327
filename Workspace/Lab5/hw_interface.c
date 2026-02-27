@@ -1,30 +1,35 @@
 
 #include <hw_interface.h>
-
+#include <math.h>
 
 // ====================================================================================================================
 // ====================================================================================================================
-/* TODO - write these functions! */
 
 void SetTimerA1Period(uint16_t period) {
-
-    // HINT: This function should change both the PWM period
-    //   AND the PWM duty cycle to be 50% of the period!!!
-    //   It probably would be useful to #define the set of periods that correspond to the tones you  want to use!
-    //   Those sorts of constants should go in the HEADER file!
-
-    return;
+    TIMA1->COUNTERREGS.LOAD = period - 1;
+    TIMA1->COUNTERREGS.CC_01[0] = period / 2;
 }
 
 void EnableTimerA1PWM(void) {
-    // Hint: This function just needs to toggle 1 bit in a register!
-    return;
+    TIMA1->COUNTERREGS.CTRCTL |= (GPTIMER_CTRCTL_EN_ENABLED);
 }
 
 void DisableTimerA1PWM(void) {
-    // Hint: This function just needs to toggle 1 bit in a register!
-    return;
+    TIMA1->COUNTERREGS.CTRCTL &= ~(GPTIMER_CTRCTL_EN_ENABLED);
 }
+
+void SetDACData(uint8_t data) {
+    DAC0->DATA0 = data;
+}
+
+void EnableDAC(void) {
+    DAC0->CTL0 |= DAC12_CTL0_ENABLE_SET;
+}
+
+void DisableDAC(void) {
+    DAC0->CTL0 &= ~DAC12_CTL0_ENABLE_SET;
+}
+
 // ====================================================================================================================
 // ====================================================================================================================
 
@@ -116,7 +121,6 @@ void InitializeTimerG0() {
 
     // 5. Enable the clock input to the timer. (The timer itself is still not enabled!)
     TIMG0->COMMONREGS.CCLKCTL = GPTIMER_CCLKCTL_CLKEN_ENABLED;
-    
 }
 
 // The function needs to be put into the interrupt table!!!!
@@ -152,7 +156,21 @@ void InitializeTimerA1_PWM(void) {
 
     TIMA1->COUNTERREGS.CC_01[0] = (TIMA1->COUNTERREGS.LOAD  + 1) / 2; // half of load to make this a square wave
     TIMA1->COUNTERREGS.CTRCTL |= (GPTIMER_CTRCTL_EN_ENABLED);
+}
 
+void InitializeDAC(void) {
+    DAC0->GPRCM.RSTCTL = (DAC12_RSTCTL_KEY_UNLOCK_W | DAC12_RSTCTL_RESETSTKYCLR_CLR | DAC12_RSTCTL_RESETASSERT_ASSERT);
+    DAC0->GPRCM.PWREN = (DAC12_PWREN_KEY_UNLOCK_W | DAC12_PWREN_ENABLE_ENABLE);
+    delay_cycles(POWER_STARTUP_DELAY);
+
+    DAC0->CTL0 |= DAC12_CTL0_RES__8BITS | DAC12_CTL0_DFM_BINARY;
+    DAC0->CTL1 |= DAC12_CTL1_OPS_OUT0;
+    DAC0->CTL2 |= DAC12_CTL2_FIFOEN_SET;
+    DAC0->CTL3 |= DAC12_CTL3_STIMCONFIG__500SPS;
+
+    DAC0->DATA0 = 0x0;
+
+    DAC0->CTL0 |= DAC12_CTL0_ENABLE_SET;
 }
 
 /*

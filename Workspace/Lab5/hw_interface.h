@@ -66,9 +66,9 @@ void EnableTimerG0(void);
 void InitializeTimerA1_PWM(void);
 
 /*
- * @brief Sets the period for Timer A1 - this is 8 MHz / desired frequency
+ * @brief Initializes DAC.
  */
-void SetTimerA1Period(uint16_t period);
+void InitializeDAC(void);
 
 /*
  * @brief Sets the period for Timer A1 - this is 8 MHz / desired frequency
@@ -81,9 +81,24 @@ void SetTimerA1Period(uint16_t period);
 void EnableTimerA1PWM(void);
 
 /*
- * @brief Enables TIMA1 PWM output
+ * @brief Disables TIMA1 PWM output
  */
 void DisableTimerA1PWM(void);
+
+/*
+ * @brief Updates DAC data
+ */
+void SetDACData(uint8_t data);
+
+/*
+ * @brief Enables DAC
+ */
+void EnableDAC(void);
+
+/*
+ * @brief Disables DAC
+ */
+void DisableDAC(void);
 
 
 
