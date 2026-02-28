@@ -33,6 +33,12 @@ typedef enum ast_assignment_op {
     ASSIGN_SUB,
     ASSIGN_MUL,
     ASSIGN_DIV,
+    ASSIGN_SHL,
+    ASSIGN_SHR,
+    ASSIGN_MOD,
+    ASSIGN_AND,
+    ASSIGN_OR,
+    ASSIGN_XOR,
 } ast_assignment_op;
 
 typedef enum ast_unary_op {
@@ -41,12 +47,14 @@ typedef enum ast_unary_op {
     UNARY_OP_DECREMENT,
     UNARY_OP_NOT,
     UNARY_OP_LOGIC_NOT,
+    UNARY_OP_ADDRESS,
+    UNARY_OP_DEREFRENCE,
 } ast_unary_op;
 
 typedef enum ast_node_type {
     AST_PROGRAM,
-    AST_BLOCK,
     AST_DECL,
+    AST_FUNC_DEF,
     AST_STATEMENT,
     AST_FUNC_CALL,
     
@@ -54,6 +62,8 @@ typedef enum ast_node_type {
     AST_BINARY_EXPR,
     AST_UNARY_EXPR,
     AST_ASSIGN_EXPR,
+
+    AST_CAST_EXPR,
 
     AST_INDEX,
     AST_MEMBER,
@@ -312,9 +322,16 @@ typedef struct ast_iteration_statement_t {
         } while_statement;
 
         struct {
-            ast_node_t *initExpr;
-            ast_node_t *conditionExpr;
-            ast_node_t *updationExpr;
+            union {
+                struct {
+                    ast_node_t *initExpr;
+                    ast_node_t *conditionExpr;
+                    ast_node_t *updationExpr;
+                };
+
+                ast_node_t *expressions[3];
+            };
+
             ast_node_t *statement;
         } for_statement;
     };
@@ -364,12 +381,14 @@ typedef struct ast_node_t {
 
     union {
         struct {
-            ast_node_t **decls;
+            ast_node_t **units;
         } program;
 
         struct {
-            ast_node_t **statements;
-        } block;
+            decl_specifiers_t *specs;
+            ast_declarator_t *declarator;
+            ast_node_t *statement;
+        } func_def;
 
         ast_decl_t decl;
         ast_statement_t statement;
@@ -398,6 +417,13 @@ typedef struct ast_node_t {
         } assign_op;
 
         struct {
+            ast_node_t *expr;
+            type_specifier_t *type;
+            u32 qualifiers;
+            ast_declarator_t *declarator;
+        } cast_expr;
+
+        struct {
             ast_unary_op op;
             ast_node_t *expr;
         } unary_op;
@@ -410,6 +436,7 @@ typedef struct ast_node_t {
         struct {
             ast_node_t *parent;
             u8 *member;
+            bool isPointer;
         } member;
 
         struct {
@@ -436,6 +463,12 @@ static bool PunctuationToAssignment(token_punctuation_type type, ast_assignment_
         case PUNCTUATION_MINUS_EQUALS: *op = ASSIGN_SUB; return true;
         case PUNCTUATION_MULT_EQUALS: *op = ASSIGN_MUL; return true;
         case PUNCTUATION_DIV_EQUALS: *op = ASSIGN_DIV; return true;
+        case PUNCTUATION_SHL_EQUALS: *op = ASSIGN_SHL; return true;
+        case PUNCTUATION_SHR_EQUALS: *op = ASSIGN_SHR; return true;
+        case PUNCTUATION_MOD_EQUALS: *op = ASSIGN_MOD; return true;
+        case PUNCTUATION_AND_EQUALS: *op = ASSIGN_AND; return true;
+        case PUNCTUATION_OR_EQUALS: *op = ASSIGN_OR; return true;
+        case PUNCTUATION_XOR_EQUALS: *op = ASSIGN_XOR; return true;
 
         default: return false;
     }
@@ -526,6 +559,8 @@ static bool PunctuationToUnary(token_punctuation_type type, ast_unary_op *op) {
         case PUNCTUATION_MINUS: *op = UNARY_OP_NEGATE; return true;
         case PUNCTUATION_LOGIC_NOT: *op = UNARY_OP_LOGIC_NOT; return true;
         case PUNCTUATION_NOT: *op = UNARY_OP_NOT; return true;
+        case PUNCTUATION_STAR: *op = UNARY_OP_DEREFRENCE; return true;
+        case PUNCTUATION_AND: *op = UNARY_OP_ADDRESS; return true;
         default: return false;
     }
 }
@@ -562,6 +597,8 @@ static u8 *UnaryToStr(ast_unary_op op) {
         case UNARY_OP_DECREMENT: return "--";
         case UNARY_OP_NOT: return "~";
         case UNARY_OP_LOGIC_NOT: return "!";
+        case UNARY_OP_DEREFRENCE: return "*";
+        case UNARY_OP_ADDRESS: return "&";
 
         default: return "";
     }
@@ -677,7 +714,21 @@ static u8 *BaseToStr(builtin_base base) {
 }
 
 static u8 *AssignToStr(ast_assignment_op op) {
-    
+    switch (op) {
+        case ASSIGN: return "=";
+        case ASSIGN_ADD: return "+=";
+        case ASSIGN_SUB: return "-=";
+        case ASSIGN_MUL: return "*=";
+        case ASSIGN_DIV: return "/=";
+        case ASSIGN_SHL: return "<<=";
+        case ASSIGN_SHR: return ">>=";
+        case ASSIGN_MOD: return "%=";
+        case ASSIGN_AND: return "&=";
+        case ASSIGN_OR: return "|=";
+        case ASSIGN_XOR: return "^=";
+
+        default: return "";
+    }
 }
 
 #endif

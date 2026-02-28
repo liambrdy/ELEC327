@@ -28,6 +28,18 @@ token_t *Advance(parser_t *p) {
     return &p->tokens[p->pos++];
 }
 
+void Reverse(parser_t *p) {
+    if (p->pos > 0) {
+        p->pos--;
+    }
+}
+
+void GoTo(parser_t *p, u32 pos) {
+    if (pos > 0 && pos < p->count) {
+        p->pos = pos;
+    }
+}
+
 bool AtEnd(parser_t *p) {
     return p->pos == p->count;
 }
@@ -78,7 +90,8 @@ token_t *_Expect(parser_t *p, token_type type, int typeType, const char *error_m
         return now;
     }
 
-    printf("%s\n", error_msg);
+    printf("expect error on line %d: %s\n", now->line + 1, error_msg);
+    exit(1);
     return NULL;
 }
 

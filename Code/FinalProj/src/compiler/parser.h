@@ -29,6 +29,8 @@ token_t *Peek(parser_t *p);
 token_t *PeekNext(parser_t *p);
 token_t *Previous(parser_t *p);
 token_t *Advance(parser_t *p);
+void Reverse(parser_t *p);
+void GoTo(parser_t *p, u32 pos);
 bool AtEnd(parser_t *p);
 
 bool Match(parser_t *p, token_type type);

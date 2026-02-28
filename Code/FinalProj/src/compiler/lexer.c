@@ -83,6 +83,8 @@ lookup_map_t punctuations[] = {
     {"?", PUNCTUATION_QUESTION_MARK},
     {".", PUNCTUATION_PERIOD},
     {"*", PUNCTUATION_STAR},
+    {"->", PUNCTUATION_RIGHT_ARROW},
+    {"<-", PUNCTUATION_LEFT_ARROW},
 
     {"+", PUNCTUATION_PLUS},
     {"-", PUNCTUATION_MINUS},
@@ -94,6 +96,12 @@ lookup_map_t punctuations[] = {
     {"-=", PUNCTUATION_MINUS_EQUALS},
     {"*=", PUNCTUATION_MULT_EQUALS},
     {"/=", PUNCTUATION_DIV_EQUALS},
+    {"<<=", PUNCTUATION_SHL_EQUALS},
+    {">>=", PUNCTUATION_SHR_EQUALS},
+    {"^=", PUNCTUATION_MOD_EQUALS},
+    {"&=", PUNCTUATION_AND_EQUALS},
+    {"|=", PUNCTUATION_OR_EQUALS},
+    {"^=", PUNCTUATION_XOR_EQUALS},
 
     {"<", PUNCTUATION_LT},
     {">", PUNCTUATION_GT},

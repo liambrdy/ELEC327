@@ -334,3 +334,17 @@ labeled-statement ::=
   | "case" constant-expression ":" statement
   | "default" ":" statement
 ```
+
+## Translation Unit Parsing
+```bnp
+translation-unit ::=
+  external-declaration
+  | translation-unit external-declaration
+
+external-declaration ::=
+  function-definition
+  | declaration
+
+function-definition ::=
+  [ declaration-specifiers ] declarator compound-statement
+```

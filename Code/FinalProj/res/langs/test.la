@@ -1,14 +1,34 @@
-{
-    int a = 12;
-    int b = 4;
-    {
-        c = 52;
-        d = 88;
+int main() {
+    int i;
+    for (i = 0; i < 15; i++) {
+        print(i + (1 << 20));
+        if (i > 12) {
+            break;
+        }
     }
 
-    if (a > 12) {
-        c = 22;
-    } else {
-        c = 10000;
+    switch (i) {
+        case 1: return 15;
+        case 2: return 22;
+        case 3: return 10000;
+        case 4: {
+            print("hello world");
+
+            for (i = 0; i < a; i++) {
+                do {
+                    print("got here %d\n", i);
+
+                    if (i % 2 == 0) {
+                        break;
+                    }
+                } while (c < i);
+            }
+
+            return -1;
+        }
+
+        default: return 0;
     }
+
+    return 15;
 }

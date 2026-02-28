@@ -89,9 +89,9 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    PrintTokens(tokens);
+    // PrintTokens(tokens);
 
-    printf("Used %ld of %ld bytes after lexer\n", globalArena->pos, globalArena->capacity);
+    // printf("Used %ld of %ld bytes after lexer\n", globalArena->pos, globalArena->capacity);
 
     ast_node_t *ast = AstFromTokens(tokens);
     if (!ast) {
@@ -100,8 +100,8 @@ int main(int argc, char **argv) {
 
     PrintAst(ast, 0);
 
-    printf("Used %ld of %ld bytes after ast\n", globalArena->pos, globalArena->capacity);
-    printf("Used %d bytes by darray\n", bytesAllocated);
+    // printf("Used %ld of %ld bytes after ast\n", globalArena->pos, globalArena->capacity);
+    // printf("Used %d bytes by darray\n", bytesAllocated);
 
     free(buffer);
     free(globalArenaMem);

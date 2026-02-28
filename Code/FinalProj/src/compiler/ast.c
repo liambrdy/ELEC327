@@ -20,6 +20,12 @@ ast_node_t *GetNewNode(ast_node_type type) {
 // Expression Parsing
 static ast_node_t *ParseExpression(parser_t *p);
 static ast_node_t *ParseAssignmentExpression(parser_t *p);
+static ast_node_t *ParseCastExpression(parser_t *p);
+static ast_declarator_t *ParseDeclarator(parser_t *p, bool isAbstract);
+static void ParseTypeSpecifier(parser_t *p, decl_specifiers_t *spec);
+static bool IsTypeSpecifier(parser_t *p);
+static void ParseTypeSpecifier(parser_t *p, decl_specifiers_t *spec);
+static bool IsDeclaratorStart(parser_t *p);
 
 typedef ast_node_t *(*parse_fn_t)(parser_t *);
 typedef bool (*punct_to_op_fn_t)(token_punctuation_type, ast_binary_op *);
@@ -116,14 +122,24 @@ ast_node_t *ParsePostfixExpression(parser_t *p) {
                 ast_node_t *new = GetNewNode(AST_FUNC_CALL);
                 new->func_call.fun = primaryExpr;
                 new->func_call.params = DArrayCreate(ast_node_t *);
-                while (!MatchPunctuation(p, PUNCTUATION_CLOSE_PAREN)) {
-                    ast_node_t *param = ParseAssignmentExpression(p);
-                    DArrayPush(new->func_call.params, param);
+                if (!MatchPunctuation(p, PUNCTUATION_CLOSE_PAREN)) {
+                    while (true) {
+                        ast_node_t *param = ParseAssignmentExpression(p);
+                        DArrayPush(new->func_call.params, param);
+                        
+                        if (MatchPunctuation(p, PUNCTUATION_CLOSE_PAREN))
+                            break;
+
+                        ExpectPunctuation(p, PUNCTUATION_COMMA, "expects comma in function parameter list");
+
+                    }
                 }
+
 
                 primaryExpr = new;
             } break;
 
+            case PUNCTUATION_RIGHT_ARROW:
             case PUNCTUATION_PERIOD: {
                 Advance(p);
 
@@ -132,6 +148,7 @@ ast_node_t *ParsePostfixExpression(parser_t *p) {
                 ast_node_t *new = GetNewNode(AST_MEMBER);
                 new->member.parent = primaryExpr;
                 new->member.member = member->lexeme;
+                new->member.isPointer = t->puncType == PUNCTUATION_RIGHT_ARROW;
 
                 primaryExpr = new;
             } break;
@@ -163,7 +180,10 @@ ast_node_t *ParseUnaryExpression(parser_t *p) {
             
             ast_node_t *new = GetNewNode(AST_UNARY_EXPR);
             new->unary_op.op = op;
-            new->unary_op.expr = ParseUnaryExpression(p);
+            if (op == UNARY_OP_INCREMENT || op == UNARY_OP_DECREMENT)
+                new->unary_op.expr = ParseUnaryExpression(p);
+            else
+                new->unary_op.expr = ParseCastExpression(p);
 
             return new;
         }
@@ -174,8 +194,50 @@ ast_node_t *ParseUnaryExpression(parser_t *p) {
     return postfixExpr;
 }
 
+ast_node_t *ParseCastExpression(parser_t *p) {
+    if (MatchPunctuation(p, PUNCTUATION_OPEN_PAREN)) {
+        token_t *t = Peek(p);
+        type_qualifier qual;
+        
+        if ((t->type == TOKEN_KEYWORD && KeywordToTypeQualifier(t->puncType, &qual)) || IsTypeSpecifier(p)) {
+            ast_node_t *new = GetNewNode(AST_CAST_EXPR);
+            
+            do {
+                t = Peek(p);
+                if (KeywordToTypeQualifier(t->keywordType, &qual)) {
+                    new->cast_expr.qualifiers |= qual;
+                } else {
+                    decl_specifiers_t spec = {0};
+                    ParseTypeSpecifier(p, &spec);
+
+                    if (new->cast_expr.type) {
+                        printf("cast already has type specifier\n");
+                        return NULL;
+                    }
+
+                    new->cast_expr.type = spec.typeSpecifier;
+                }
+                Advance(p);
+            } while (!MatchPunctuation(p, PUNCTUATION_CLOSE_PAREN) && !IsDeclaratorStart(p));
+
+            if (IsDeclaratorStart(p)) {
+                new->cast_expr.declarator = ParseDeclarator(p, true);
+                ExpectPunctuation(p, PUNCTUATION_CLOSE_PAREN, "expects closed parenthese after cast declarator");
+            }
+
+            new->cast_expr.expr = ParseCastExpression(p);
+
+            return new;
+        } else {
+            Reverse(p);
+        }
+    }
+
+    return ParseUnaryExpression(p);
+}
+
 ast_node_t *ParseMultExpression(parser_t *p) {
-    return ParseBinaryLevel(p, ParseUnaryExpression, PunctuationToMult);
+    return ParseBinaryLevel(p, ParseCastExpression, PunctuationToMult);
 }
 
 ast_node_t *ParseAddExpression(parser_t *p) {
@@ -392,6 +454,7 @@ void ParseTypeSpecifier(parser_t *p, decl_specifiers_t *spec) {
                 t = Peek(p);
                 if (t->type == TOKEN_PUNCTUATION && t->puncType == PUNCTUATION_CLOSE_CURLY)
                     break;
+
             } while (1);
         } else if (!spec->typeSpecifier->enum_type.name) {
             printf("expects identifier if no enum declaration");
@@ -470,6 +533,11 @@ ast_parameter_t *ParseParameterDeclaration(parser_t *p) {
 ast_parameter_t **ParseParameterList(parser_t *p) {
     ast_parameter_t **params = DArrayCreate(ast_parameter_t *);
     
+    token_t *t = Peek(p);
+    if (t->type == TOKEN_PUNCTUATION && t->puncType == PUNCTUATION_CLOSE_PAREN) {
+        return NULL;
+    }
+
     do {
         ast_parameter_t *param = ParseParameterDeclaration(p);
         DArrayPush(params, param);
@@ -713,7 +781,6 @@ ast_node_t *ParseDeclaration(parser_t *p) {
 }
 
 // Statement Parsing
-
 statement_kind GetNextStatementKind(parser_t *p) {
     token_t *t = Peek(p);
 
@@ -788,7 +855,16 @@ ast_node_t *ParseStatement(parser_t *p) {
 
     switch (statement->statement.kind) {
         case STATEMENT_LABELED: {
+            if (MatchKeyword(p, KEYWORD_CASE)) {
+                statement->statement.labeled.kind = LABELED_STATEMENT_CASE;
+                statement->statement.labeled.label_case.label = ParseExpression(p);
+                ExpectPunctuation(p, PUNCTUATION_COLON, "expects colon after case expression");
+            } else if (MatchKeyword(p, KEYWORD_DEFAULT)) {
+                statement->statement.labeled.kind = LABELED_STATEMENT_DEFAULT;
+                ExpectPunctuation(p, PUNCTUATION_COLON, "expects colon after `default`");
+            }
 
+            statement->statement.labeled.inner = ParseStatement(p);
         } break;
 
         case STATEMENT_COMPOUND: {
@@ -813,6 +889,10 @@ ast_node_t *ParseStatement(parser_t *p) {
         case STATEMENT_EXPRESSION: {
             if (!MatchPunctuation(p, PUNCTUATION_SEMICOLON)) {
                 statement->statement.expression.expression = ParseExpression(p);
+                if (!statement->statement.expression.expression) {
+                    printf("expected expression in statement expression\n");
+                    return NULL;
+                }
                 ExpectPunctuation(p, PUNCTUATION_SEMICOLON, "Expects semicolon after expression statement");
             }
         } break;
@@ -845,11 +925,58 @@ ast_node_t *ParseStatement(parser_t *p) {
         } break;
 
         case STATEMENT_ITERATION: {
+            if (MatchKeyword(p, KEYWORD_WHILE)) {
+                statement->statement.iteration.kind = ITERATION_STATEMENT_WHILE;
+                
+                ExpectPunctuation(p, PUNCTUATION_OPEN_PAREN, "expects open parenthese around condition for while");
+                statement->statement.iteration.while_statement.condition = ParseExpression(p);
+                ExpectPunctuation(p, PUNCTUATION_CLOSE_PAREN, "expects close parenthese around condition for while");
 
+                statement->statement.iteration.while_statement.statement = ParseStatement(p);
+            } else if (MatchKeyword(p, KEYWORD_DO)) {
+                statement->statement.iteration.kind = ITERATION_STATEMENT_WHILE;
+                statement->statement.iteration.while_statement.hasDo = true;
+                statement->statement.iteration.while_statement.statement = ParseStatement(p);
+                
+                ExpectKeyword(p, KEYWORD_WHILE, "expects `while` in do-while statement");
+                ExpectPunctuation(p, PUNCTUATION_OPEN_PAREN, "expects open parenthese around condition for while");
+                statement->statement.iteration.while_statement.condition = ParseExpression(p);
+                ExpectPunctuation(p, PUNCTUATION_CLOSE_PAREN, "expects close parenthese around condition for while");
+                ExpectPunctuation(p, PUNCTUATION_SEMICOLON, "expects semicolon after do-while statement");
+            } else if (MatchKeyword(p, KEYWORD_FOR)) {
+                statement->statement.iteration.kind = ITERATION_STATEMENT_FOR;
+
+                ExpectPunctuation(p, PUNCTUATION_OPEN_PAREN, "expects open parenthese in `for` statement");
+
+                for (int i = 0; i < 3; i++) {
+                    if (i < 2 && !MatchPunctuation(p, PUNCTUATION_SEMICOLON)) {
+                        statement->statement.iteration.for_statement.expressions[i] = ParseExpression(p);
+                        ExpectPunctuation(p, PUNCTUATION_SEMICOLON, "expects semicolon after each `for` expression");
+                    } else if (i == 2 && !MatchPunctuation(p, PUNCTUATION_CLOSE_PAREN)) {
+                        statement->statement.iteration.for_statement.expressions[i] = ParseExpression(p);
+                        ExpectPunctuation(p, PUNCTUATION_CLOSE_PAREN, "expects close parenthese after `for` condition");
+                    }
+                }
+
+                statement->statement.iteration.for_statement.statement = ParseStatement(p);
+            }
         } break;
 
         case STATEMENT_JUMP: {
-
+            if (MatchKeyword(p, KEYWORD_CONTINUE)) {
+                statement->statement.jump.kind = JUMP_STATEMENT_CONTINUE;
+                ExpectPunctuation(p, PUNCTUATION_SEMICOLON, "expects semicolon after `continue`");
+            } else if (MatchKeyword(p, KEYWORD_BREAK)) {
+                statement->statement.jump.kind = JUMP_STATEMENT_BREAK;
+                ExpectPunctuation(p, PUNCTUATION_SEMICOLON, "expects semicolon after `break`");
+            } else if (MatchKeyword(p, KEYWORD_RETURN)) {
+                statement->statement.jump.kind = JUMP_STATEMENT_RETURN;
+                
+                if (!MatchPunctuation(p, PUNCTUATION_SEMICOLON)) {
+                    statement->statement.jump.return_statement.expr = ParseExpression(p);
+                    ExpectPunctuation(p, PUNCTUATION_SEMICOLON, "expects semicolon after return statement");
+                }
+            }
         } break;
 
         default: break;
@@ -858,10 +985,36 @@ ast_node_t *ParseStatement(parser_t *p) {
     return statement;
 }
 
+// Translation Unit Parsing
+ast_node_t *ParseTranslationUnit(parser_t *p) {
+    u32 beginning = p->pos;
+
+    if (!IsDeclarationStart(p) && !IsDeclaratorStart(p)) {
+        printf("expects function definition or declaration in translation unit\n");
+        return NULL;
+    }
+
+    decl_specifiers_t *specs = ParseDeclarationSpecifiers(p);
+    ast_declarator_t *decl = ParseDeclarator(p, false);
+
+    token_t *t = Peek(p);
+    if (t->type == TOKEN_PUNCTUATION && t->puncType == PUNCTUATION_OPEN_CURLY) {
+        ast_node_t *new = GetNewNode(AST_FUNC_DEF);
+        new->func_def.specs = specs;
+        new->func_def.declarator = decl;
+        new->func_def.statement = ParseStatement(p);
+
+        return new;
+    } else {
+        GoTo(p, beginning);
+        return ParseDeclaration(p);
+    }
+}
+
 ast_node_t *AstFromTokens(token_t *tokens) {
     ast_node_t *program = PushStruct(globalArena, ast_node_t);
     program->type = AST_PROGRAM;
-    program->program.decls = DArrayCreate(ast_node_t *);
+    program->program.units = DArrayCreate(ast_node_t *);
 
     parser_t p = {0};
     p.tokens = tokens;
@@ -872,12 +1025,12 @@ ast_node_t *AstFromTokens(token_t *tokens) {
     PushScope(&p);
     
     while (!Match(&p, TOKEN_EOF)) {
-        ast_node_t *statement = ParseStatement(&p);
-        if (!statement) {
+        ast_node_t *unit = ParseTranslationUnit(&p);
+        if (!unit) {
             return NULL;
         }
 
-        DArrayPush(program->program.decls, statement);
+        DArrayPush(program->program.units, unit);
     }
 
     return program;
@@ -1010,7 +1163,8 @@ void PrintAstDeclarator(ast_declarator_t *decl, int depth) {
                     printf(" %s", TypeQualifierToStr((type_qualifier)(1 << i)));
                 }
             }
-            PrintAstDeclarator(decl->pointer.inner, depth);
+            if (decl->pointer.inner)
+                PrintAstDeclarator(decl->pointer.inner, depth);
         } break;
 
         case DECL_ARRAY: {
@@ -1023,15 +1177,17 @@ void PrintAstDeclarator(ast_declarator_t *decl, int depth) {
         case DECL_FUNCTION: {
             PrintAstDeclarator(decl->function.inner, depth);
             printf("(");
-            int paramCount = DArrayLength(decl->function.parameters);
-            for (int i = 0; i < paramCount; i++) {
-                ast_parameter_t *param = decl->function.parameters[i];
-                PrintDeclSpecifiers(&param->specifiers, depth);
-                printf(" ");
-                PrintAstDeclarator(param->declarator, depth);
-                
-                if (i < paramCount - 1) {
-                    printf(", ");
+            if (decl->function.parameters) {
+                int paramCount = DArrayLength(decl->function.parameters);
+                for (int i = 0; i < paramCount; i++) {
+                    ast_parameter_t *param = decl->function.parameters[i];
+                    PrintDeclSpecifiers(&param->specifiers, depth);
+                    printf(" ");
+                    PrintAstDeclarator(param->declarator, depth);
+                    
+                    if (i < paramCount - 1) {
+                        printf(", ");
+                    }
                 }
             }
             printf(")");
@@ -1078,66 +1234,123 @@ void PrintAstInitializer(ast_initializer_t *initializer) {
 }
 
 void PrintAstStatement(ast_statement_t *statement, int depth) {
-    printf("%*sStatement(", depth * 4, "");
+    printf("Statement(");
     switch (statement->kind) {
         case STATEMENT_COMPOUND: {
-            printf("{\n");
+            printf("{\n%*s", (depth + 1) * 4, "");
             
             if (statement->compound.declarations) {
                 int declCount = DArrayLength(statement->compound.declarations);
                 for (int i = 0; i < declCount; i++) {
                     PrintAst(statement->compound.declarations[i], depth + 1);
                     if (i < declCount - 1) {
-                        printf(",\n");
+                        printf(",\n%*s", (depth + 1) * 4, "");
                     }
                 }
             }
             
             if (statement->compound.statements) {
                 if (statement->compound.declarations) {
-                    printf("\n");
+                    printf("\n%*s", (depth + 1) * 4, "");
                 }
 
                 int statementCount = DArrayLength(statement->compound.statements);
                 for (int i = 0; i < statementCount; i++) {
                     PrintAst(statement->compound.statements[i], depth + 1);
                     if (i < statementCount - 1) {
-                        printf(",\n");
+                        printf(",\n%*s", (depth + 1) * 4, "");
                     }
                 }
             }
+
+            printf("}");
         } break;
 
         case STATEMENT_LABELED: {
-
+            if (statement->labeled.kind == LABELED_STATEMENT_CASE) {
+                printf("case ");
+                PrintAst(statement->labeled.label_case.label, depth);
+                printf(": ");
+                PrintAst(statement->labeled.inner, depth);
+            } else if (statement->labeled.kind == LABELED_STATEMENT_DEFAULT) {
+                printf("default: ");
+                PrintAst(statement->labeled.inner, depth);
+            }
         } break;
 
         case STATEMENT_EXPRESSION: {
-            PrintAst(statement->expression.expression, depth + 1);
+            PrintAst(statement->expression.expression, depth);
         } break;
 
         case STATEMENT_SELECTION: {
             if (statement->selection.kind == SELECTION_STATEMENT_IF) {
                 printf("\n%*sif (", (depth + 1) * 4, "");
-                PrintAst(statement->selection.if_statement.condition, depth + 2);
-                printf(") {\n");
-                PrintAst(statement->selection.if_statement.ifStatement, depth + 2);
+                PrintAst(statement->selection.if_statement.condition, depth + 1);
+                printf(") ");
+                PrintAst(statement->selection.if_statement.ifStatement, depth + 1);
                 printf("\n%*s}", (depth + 1) * 4, "");
 
                 if (statement->selection.if_statement.elseStatement) {
                     printf(" else {\n");
-                    PrintAst(statement->selection.if_statement.elseStatement, depth + 2);
+                    PrintAst(statement->selection.if_statement.elseStatement, depth + 1);
                     printf("\n%*s}", (depth + 1) * 4, "");
                 }
+            } else if (statement->selection.kind == SELECTION_STATEMENT_SWITCH) {
+                printf("switch (");
+                PrintAst(statement->selection.switch_statement.condition, depth + 1);
+                printf(") ");
+                PrintAst(statement->selection.switch_statement.statement, depth);
+                // printf("\n%*s", (depth + 1) * 4, "");
             }
         } break;
 
         case STATEMENT_ITERATION: {
+            switch (statement->iteration.kind) {
+                case ITERATION_STATEMENT_WHILE: {
+                    if (statement->iteration.while_statement.hasDo) {
+                        printf("do ");
+                        PrintAst(statement->iteration.while_statement.statement, depth);
+                        printf(" while (");
+                        PrintAst(statement->iteration.while_statement.condition, depth + 1);
+                        printf(")");
+                    } else {
+                        printf("while (");
+                        PrintAst(statement->iteration.while_statement.condition, depth + 1);
+                        printf(")\n");
+                        PrintAst(statement->iteration.while_statement.statement, depth);
+                    }
+                } break;;
 
+                case ITERATION_STATEMENT_FOR: {
+                    printf("for (");
+                    for (int i = 0; i < 3; i++) {
+                        if (statement->iteration.for_statement.expressions[i]) {
+                            PrintAst(statement->iteration.for_statement.expressions[i], depth);
+                            if (i < 2) {
+                                printf("; ");
+                            }
+                        }
+                    }
+                    printf(") ");
+                    PrintAst(statement->iteration.for_statement.statement, depth);
+                }
+            }
         } break;
 
         case STATEMENT_JUMP: {
+            switch (statement->jump.kind) {
+                case JUMP_STATEMENT_CONTINUE: printf("continue"); break;
+                case JUMP_STATEMENT_BREAK: printf("break"); break;
+                case JUMP_STATEMENT_RETURN: {
+                    printf("return");
+                    if (statement->jump.return_statement.expr) {
+                        printf(" ");
+                        PrintAst(statement->jump.return_statement.expr, depth);
+                    }
+                } break;
 
+                default: break;
+            }
         } break;
 
         default: break;
@@ -1150,10 +1363,12 @@ void PrintAst(ast_node_t *parent, int depth) {
     switch (parent->type) {
         case AST_PROGRAM: {
             printf("[\n");
-            for (int i = 0; i < DArrayLength(parent->program.decls); i++) {
-                PrintAst(parent->program.decls[i], depth + 1);
 
-                if (i < DArrayLength(parent->program.decls) - 1) {
+            int unitCount = DArrayLength(parent->program.units);
+            for (int i = 0; i < unitCount; i++) {
+                PrintAst(parent->program.units[i], depth + 1);
+
+                if (i < unitCount - 1) {
                     printf(", ");
                 }
                 printf("\n");
@@ -1161,12 +1376,8 @@ void PrintAst(ast_node_t *parent, int depth) {
             printf("]\n");
         } break;
 
-        case AST_BLOCK: {
-
-        } break;
-
         case AST_DECL: {
-            printf("%*sDeclaration(", (depth + 1) * 4, "");
+            printf("Declaration(");
             PrintDeclSpecifiers(&parent->decl.specifiers, depth);
             int declCount = DArrayLength(parent->decl.initDeclList);
 
@@ -1194,14 +1405,26 @@ void PrintAst(ast_node_t *parent, int depth) {
             printf(")");
         } break;
 
+        case AST_FUNC_DEF: {
+            printf("%*sFunction(", depth * 4, "");
+            if (parent->func_def.specs) {
+                PrintDeclSpecifiers(parent->func_def.specs, depth);
+                printf(" ");
+            }
+            PrintAstDeclarator(parent->func_def.declarator, depth);
+            printf("\n%*s", (depth + 1) * 4, "");
+            PrintAst(parent->func_def.statement, depth + 1);
+            printf(")");
+        } break;
+
         case AST_STATEMENT: {
-            PrintAstStatement(&parent->statement, depth + 1);
+            PrintAstStatement(&parent->statement, depth);
         } break;
 
         case AST_FUNC_CALL: {
             printf("FunCall(");
             PrintAst(parent->func_call.fun, depth + 1);
-            printf("\tparams = [");
+            printf(", params = [");
 
             i32 paramCount = DArrayLength(parent->func_call.params);
             for (int i = 0; i < paramCount; i++) {
@@ -1238,6 +1461,25 @@ void PrintAst(ast_node_t *parent, int depth) {
         } break;
 
         case AST_ASSIGN_EXPR: {
+            PrintAst(parent->assign_op.left, depth);
+            printf(" %s ", AssignToStr(parent->assign_op.op));
+            PrintAst(parent->assign_op.right, depth);
+        } break;
+
+        case AST_CAST_EXPR: {
+            printf("(");
+
+            decl_specifiers_t specs = {
+                .typeQualifier = parent->cast_expr.qualifiers,
+                .typeSpecifier = parent->cast_expr.type,
+            };
+            
+            PrintDeclSpecifiers(&specs, depth + 1);
+            if (parent->cast_expr.declarator) {
+                PrintAstDeclarator(parent->cast_expr.declarator, depth + 1);
+            }
+            printf(") ");
+            PrintAst(parent->cast_expr.expr, depth + 1);
             
         } break;
 
@@ -1252,7 +1494,7 @@ void PrintAst(ast_node_t *parent, int depth) {
         case AST_MEMBER: {
             printf("Member(");
             PrintAst(parent->member.parent, depth + 1);
-            printf(".%s)", parent->member.member);
+            printf("%s%s)", parent->member.isPointer ? "->" : ".", parent->member.member);
         } break;
 
         case AST_LITERAL_INT: {
@@ -1260,7 +1502,7 @@ void PrintAst(ast_node_t *parent, int depth) {
         } break;
 
         case AST_LITERAL_STRING: {
-
+            printf("\"%s\"", parent->string_literal.literal);
         } break;
 
         case AST_IDENTIFIER: {
