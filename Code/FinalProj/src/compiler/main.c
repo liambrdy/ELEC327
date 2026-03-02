@@ -9,13 +9,14 @@
 #include "file.h"
 
 void usage(const char *exe) {
-    printf("Usage: %s in_file [-o out_file] \n", exe);
+    printf("Usage: %s in_file [-o out_file] [-Iinc_dir]\n", exe);
 }
 
 typedef struct args_t {
-    char *in_file; // required
+    u8 *in_file; // required
     
-    char *out_file; // not required
+    u8 *out_file; // not required
+    u8 **inc_dirs; // not required
 } args_t;
 
 int parse(int argc, char **argv, args_t *outArgs) {
@@ -31,6 +32,14 @@ int parse(int argc, char **argv, args_t *outArgs) {
                 case 'o': {
                     i++;
                     outArgs->out_file = argv[i];
+                } break;
+
+                case 'I': {
+                    if (!outArgs->inc_dirs) {
+                        outArgs->inc_dirs = DArrayCreate(u8 *);
+                    }
+                    u8 *dir = argv[i] + 2;
+                    DArrayPush(outArgs->inc_dirs, dir);
                 } break;
 
                 default: {
@@ -79,7 +88,7 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    token_t *tokens = preprocess(ppTokens, args.in_file);
+    token_t *tokens = preprocess(ppTokens, args.in_file, args.inc_dirs);
 
     PrintTokens(tokens);
 

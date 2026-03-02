@@ -1,6 +1,8 @@
 #include "file.h"
 
 #include <stdio.h>
+#include <string.h>
+#include <stdio.h>
 
 #include "arena.h"
 
@@ -10,7 +12,6 @@ loaded_file_t LoadFile(u8 *path) {
 
     FILE *f = fopen(path, "r");
     if (!f) {
-        printf("failed to load file: %s\n", path);
         return t;
     }
 
@@ -28,4 +29,20 @@ loaded_file_t LoadFile(u8 *path) {
     fclose(f);
 
     return t;
+}
+
+u8 *GetFileDir(u8 *filepath) {
+    int pathLen = strlen(filepath);
+    u8 *dir = PushArray(globalArena, u8, pathLen);
+
+    memset(dir, 0, pathLen);
+    int lastSlashPath = 0;
+    for (int i = 0; i < pathLen; i++) {
+        if (filepath[i] == '/') lastSlashPath = i;
+    }
+
+    strncpy(dir, filepath, lastSlashPath + 1);
+    dir[lastSlashPath + 1] = '\0';
+
+    return dir;
 }

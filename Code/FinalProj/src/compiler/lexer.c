@@ -153,6 +153,7 @@ lookup_result_t LookupStr(u8* str, int typeCount, lookup_map_t *lookupMap) {
     return res;
 }
 
+//TODO Stop doing substrings for each lexeme
 u8 *substring(u8 *string, int start, int end) {
     int length = end - start + 1;
     u8 *substr = PushArray(globalArena, u8, length + 1);
@@ -372,7 +373,7 @@ static bool Match(preprocessor_t *pre, token_type type) {
         pre->cursor++;
 
         if (type == TOKEN_NEW_LINE) {
-            pre->atLineStart = false;
+            pre->atLineStart = true;
         }
 
         return true;
@@ -428,7 +429,12 @@ bool CanSurviveUnactive(pre_type type) {
 }
 
 void ParseDirective(preprocessor_t *pre) {
-    token_t *name = Consume(pre, TOKEN_IDENTIFIER);
+    token_t *name = &pre->input[pre->cursor++];
+
+    if (name->type == TOKEN_KEYWORD && name->keywordType != KEYWORD_ELSE) {
+        printf("unknown preprocessor: %s\n", name->lexeme);
+        return;
+    }
 
     lookup_result_t res = LookupStr(name->lexeme, PRE_COUNT, preLookup);
     if (!res.found) {
@@ -453,7 +459,7 @@ void ParseDirective(preprocessor_t *pre) {
             m.replacement = DArrayCreate(token_t);
             while (!Match(pre, TOKEN_NEW_LINE)) {
                 token_t *t = Peek(pre);
-                if (t->type = TOKEN_PUNCTUATION && t->puncType == PUNCTUATION_BACKSLASH) {
+                if (t->type == TOKEN_PUNCTUATION && t->puncType == PUNCTUATION_BACKSLASH) {
                     pre->cursor++;
                     Expect(pre, TOKEN_NEW_LINE, "expects new line after extended line define");
                 } else {
@@ -522,49 +528,48 @@ void ParseDirective(preprocessor_t *pre) {
         case PRE_INCLUDE: {
             token_t *t = Peek(pre);
             if (Match(pre, TOKEN_LITERAL)) {
-                if (t->litType =! LITERAL_STRING) {
+                if (t->litType != LITERAL_STRING) {
                     printf("expects string literal for include\n");
                     return;
                 }
 
-                int currentFileLen = strlen(pre->currentFile);
-                u8 *currentDirPath = (u8 *)malloc(currentFileLen);
+                bool found = false;
 
-                memset(currentDirPath, 0, currentFileLen);
-                int lastSlashPath = 0;
-                for (int i = 0; i < currentFileLen; i++) {
-                    if (pre->currentFile[i] == '/') lastSlashPath = i;
+                int searchDirLen = DArrayLength(pre->incDirs);
+                for (int i = 0; i < searchDirLen; i++) {
+                    u8 *dir = pre->incDirs[i];
+
+                    u32 newStrLen = strlen(dir) + strlen(t->strLiteral) + 1;
+                    u8 *path = (u8 *)malloc(newStrLen);
+
+                    snprintf(path, newStrLen, "%s%s", dir, t->strLiteral);
+                    loaded_file_t f = LoadFile(path);
+                    if (!f.success) {
+                        free(path);
+                        continue;
+                    }
+
+                    token_t *tokens = tokenize(f.buffer, f.bufferLen);
+
+                    file_context_t ctx = {
+                        .tokens = pre->input,
+                        .cursor = pre->cursor,
+                        .filename = pre->currentFile,
+                    };
+                    DArrayPush(pre->includeStack, ctx);
+
+                    pre->input = tokens;
+                    pre->cursor = 0;
+                    pre->currentFile = t->lexeme;
+
+                    found = true;
+                    break;
                 }
 
-                strncpy(currentDirPath, pre->currentFile, lastSlashPath);
-                currentDirPath[lastSlashPath] = '\0';
-
-                u32 newStrLen = strlen(pre->currentFile) + strlen(t->strLiteral) + 2;
-                u8 *path = (u8 *)malloc(newStrLen);
-
-                snprintf(path, newStrLen, "%s/%s", currentDirPath, t->strLiteral);
-
-                loaded_file_t f = LoadFile(path);
-                if (!f.success) {
-                    printf("must give path to include file: %s not found\n", t->strLiteral);
+                if (!found) {
+                    printf("include file not found: %s\n", t->lexeme);
                     return;
                 }
-
-                free(currentDirPath);
-                free(path);
-
-                token_t *tokens = tokenize(f.buffer, f.bufferLen);
-
-                file_context_t ctx = {
-                    .tokens = pre->input,
-                    .cursor = pre->cursor,
-                    .filename = pre->currentFile,
-                };
-                DArrayPush(pre->includeStack, ctx);
-
-                pre->input = tokens;
-                pre->cursor = 0;
-                pre->currentFile = t->lexeme;
             }
         } break;
 
@@ -598,7 +603,7 @@ void ExpandOrEmit(preprocessor_t *pre) {
     pre->atLineStart = false;
 }
 
-token_t *preprocess(token_t *ppTokens, u8 *filename) {
+token_t *preprocess(token_t *ppTokens, u8 *filename, u8 **incDirs) {
     preprocessor_t pre = {0};
     pre.input = ppTokens;
     pre.output = DArrayCreate(token_t);
@@ -607,6 +612,14 @@ token_t *preprocess(token_t *ppTokens, u8 *filename) {
     pre.macroTable = CreateHashTable(sizeof(macro_t));
     pre.atLineStart = true;
     pre.currentFile = filename;
+    pre.incDirs = incDirs;
+
+    if (!pre.incDirs) {
+        pre.incDirs = DArrayCreate(u8 *);
+    }
+
+    u8 *currentDir = GetFileDir(pre.currentFile);
+    DArrayPush(pre.incDirs, currentDir);
 
     bool parent = true;
 
@@ -627,8 +640,12 @@ token_t *preprocess(token_t *ppTokens, u8 *filename) {
                 ParseDirective(&pre);
             else if (IsActive(&pre))
                 ExpandOrEmit(&pre);
-            else
+            else {
+                if (pre.input[pre.cursor].type == TOKEN_NEW_LINE)
+                    pre.atLineStart = true;
+
                 pre.cursor++;
+            }
         }
     } while (DArrayLength(pre.includeStack) != 0);
 

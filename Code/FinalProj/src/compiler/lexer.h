@@ -187,12 +187,13 @@ typedef struct preprocessor_t {
     file_context_t *includeStack;
 
     u8 *currentFile;
+    u8 **incDirs;
 
     token_t *output;
 } preprocessor_t;
 
 token_t *tokenize(u8 *buffer, int bufferSize);
-token_t *preprocess(token_t *ppTokens, u8 *filename);
+token_t *preprocess(token_t *ppTokens, u8 *filename, u8 **incDirs);
 
 void PrintTokens(token_t *tokens);
 

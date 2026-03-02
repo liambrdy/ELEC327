@@ -11,4 +11,6 @@ typedef struct loaded_file_t {
 
 loaded_file_t LoadFile(u8 *path);
 
+u8 *GetFileDir(u8 *filepath);
+
 #endif

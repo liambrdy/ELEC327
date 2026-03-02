@@ -951,8 +951,12 @@ ast_node_t *ParseStatement(parser_t *p) {
 
                 for (int i = 0; i < 3; i++) {
                     if (i < 2 && !MatchPunctuation(p, PUNCTUATION_SEMICOLON)) {
-                        statement->statement.iteration.for_statement.expressions[i] = ParseExpression(p);
-                        ExpectPunctuation(p, PUNCTUATION_SEMICOLON, "expects semicolon after each `for` expression");
+                        if (i == 0 && IsDeclarationStart(p)) {
+                            statement->statement.iteration.for_statement.expressions[i] = ParseDeclaration(p);
+                        } else {
+                            statement->statement.iteration.for_statement.expressions[i] = ParseExpression(p);
+                            ExpectPunctuation(p, PUNCTUATION_SEMICOLON, "expects semicolon after each `for` expression");
+                        }
                     } else if (i == 2 && !MatchPunctuation(p, PUNCTUATION_CLOSE_PAREN)) {
                         statement->statement.iteration.for_statement.expressions[i] = ParseExpression(p);
                         ExpectPunctuation(p, PUNCTUATION_CLOSE_PAREN, "expects close parenthese after `for` condition");
@@ -1106,7 +1110,7 @@ void PrintDeclSpecifiers(decl_specifiers_t *specifiers, int depth) {
                 printf("%s ", spec->struct_union.name);
             }
 
-            printf("{\n");
+            printf("{\n%*s", (depth + 2) * 4, "");
 
             int fieldCount = DArrayLength(spec->struct_union.fields);
             for (int i = 0; i < fieldCount; i++) {
@@ -1116,6 +1120,10 @@ void PrintDeclSpecifiers(decl_specifiers_t *specifiers, int depth) {
 
                 PrintAst(&node, depth + 1);
                 printf(";\n");
+
+                if (i < fieldCount - 1) {
+                    printf("%*s", (depth + 2) * 4, "");
+                }
             }
             printf("%*s}", (depth + 1) * 4, "");
         } break;
@@ -1230,6 +1238,9 @@ void PrintAstInitializer(ast_initializer_t *initializer) {
                 }
 
                 PrintAstInitializer(init->initializer);
+                if (i < listLen - 1) {
+                    printf(", ");
+                }
             }
         } break;
     }

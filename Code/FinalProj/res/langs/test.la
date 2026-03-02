@@ -1,8 +1,23 @@
 #include "types.h"
-#include "types.h"
 
 #define X 12
+#define RET_MSG "hello world"
+
+typedef struct ret_t {
+    i32 ret;
+    u8 *msg;
+} ret_t;
+
 int main() {
-    return X;
+    ret_t s = {
+        .ret = X,
+        .msg = RET_MSG,
+    };
+
+    for (int i = 0; i < 4; i++) {
+        printf("%d\n", i);
+    }
+    
+    printf(s.msg);
+    return s.ret;
 }
-#endif
