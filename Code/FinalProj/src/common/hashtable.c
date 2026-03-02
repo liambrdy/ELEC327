@@ -3,15 +3,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "arena.h"
+
 hash_table_t *CreateHashTable(u32 dataSize) {
-    hash_table_t *table = (hash_table_t *)malloc(sizeof(hash_table_t));
-    memset(table, 0, sizeof(hash_table_t));
+    hash_table_t *table = PushStruct(globalArena, hash_table_t);
     
     table->dataSize = dataSize;
-
-    // for (int i = 0; i < ARRAY_LEN(table->data); i++) {
-    //     table->data[i].prevItem = table->data[i].nextItem = table->data + i;
-    // }
 
     return table;
 }
@@ -78,4 +75,20 @@ void *HashGet(hash_table_t *table, u8 *key) {
     }
 
     return NULL;
+}
+
+bool HashContainsRet(hash_table_t *table, u8 *key, void **data) {
+    u32 bucket = Hash(key) % BUCKET_COUNT;
+
+    hash_item_t *current = table->data[bucket];    
+    while (current != NULL) {
+        if (strcmp(key, current->key) == 0) {
+            *data = current->data;
+            return true;
+        }
+
+        current = current->nextItem;
+    }
+
+    return false;
 }

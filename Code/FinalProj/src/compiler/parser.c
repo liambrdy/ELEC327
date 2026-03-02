@@ -35,7 +35,7 @@ void Reverse(parser_t *p) {
 }
 
 void GoTo(parser_t *p, u32 pos) {
-    if (pos > 0 && pos < p->count) {
+    if (pos >= 0 && pos < p->count) {
         p->pos = pos;
     }
 }

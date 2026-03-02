@@ -1,34 +1,8 @@
+#include "types.h"
+#include "types.h"
+
+#define X 12
 int main() {
-    int i;
-    for (i = 0; i < 15; i++) {
-        print(i + (1 << 20));
-        if (i > 12) {
-            break;
-        }
-    }
-
-    switch (i) {
-        case 1: return 15;
-        case 2: return 22;
-        case 3: return 10000;
-        case 4: {
-            print("hello world");
-
-            for (i = 0; i < a; i++) {
-                do {
-                    print("got here %d\n", i);
-
-                    if (i % 2 == 0) {
-                        break;
-                    }
-                } while (c < i);
-            }
-
-            return -1;
-        }
-
-        default: return 0;
-    }
-
-    return 15;
+    return X;
 }
+#endif

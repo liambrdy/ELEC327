@@ -68,7 +68,9 @@ void _DArrayPop(void *array, void *dest) {
     u64 stride = DArrayStride(array);
     u64 addr = (u64)array;
     addr += ((length - 1) * stride);
-    memcpy(dest, (void *)addr, stride);
+    if (dest) {
+        memcpy(dest, (void *)addr, stride);
+    }
     _DArrayFieldSet(array, DARRAY_LENGTH, length - 1);
 }
 

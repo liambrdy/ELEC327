@@ -501,6 +501,7 @@ decl_specifiers_t *ParseDeclarationSpecifiers(parser_t *p) {
                 spec->typeSpecifier->kind = SPECIFIER_TYPEDEF_NAME;
                 spec->typeSpecifier->typedef_type.name = t->lexeme;
             } else if (!advancedOnce) {
+                printf("unknown type on line %d: %s\n", t->line + 1, t->lexeme);
                 return NULL;
             } else {
                 return spec;
@@ -1024,7 +1025,8 @@ ast_node_t *AstFromTokens(token_t *tokens) {
     
     PushScope(&p);
     
-    while (!Match(&p, TOKEN_EOF)) {
+    int tokenLen = DArrayLength(tokens);
+    while (p.pos < tokenLen) {
         ast_node_t *unit = ParseTranslationUnit(&p);
         if (!unit) {
             return NULL;
@@ -1263,7 +1265,7 @@ void PrintAstStatement(ast_statement_t *statement, int depth) {
                 }
             }
 
-            printf("}");
+            printf("\n%*s}", depth * 4, "");
         } break;
 
         case STATEMENT_LABELED: {
@@ -1284,11 +1286,11 @@ void PrintAstStatement(ast_statement_t *statement, int depth) {
 
         case STATEMENT_SELECTION: {
             if (statement->selection.kind == SELECTION_STATEMENT_IF) {
-                printf("\n%*sif (", (depth + 1) * 4, "");
+                printf("if (");
                 PrintAst(statement->selection.if_statement.condition, depth + 1);
                 printf(") ");
                 PrintAst(statement->selection.if_statement.ifStatement, depth + 1);
-                printf("\n%*s}", (depth + 1) * 4, "");
+                printf("}");
 
                 if (statement->selection.if_statement.elseStatement) {
                     printf(" else {\n");
@@ -1366,6 +1368,7 @@ void PrintAst(ast_node_t *parent, int depth) {
 
             int unitCount = DArrayLength(parent->program.units);
             for (int i = 0; i < unitCount; i++) {
+                printf("%*s", (depth + 1) * 4, "");
                 PrintAst(parent->program.units[i], depth + 1);
 
                 if (i < unitCount - 1) {
@@ -1406,14 +1409,14 @@ void PrintAst(ast_node_t *parent, int depth) {
         } break;
 
         case AST_FUNC_DEF: {
-            printf("%*sFunction(", depth * 4, "");
+            printf("Function(");
             if (parent->func_def.specs) {
                 PrintDeclSpecifiers(parent->func_def.specs, depth);
                 printf(" ");
             }
             PrintAstDeclarator(parent->func_def.declarator, depth);
-            printf("\n%*s", (depth + 1) * 4, "");
-            PrintAst(parent->func_def.statement, depth + 1);
+            printf(" ");
+            PrintAst(parent->func_def.statement, depth);
             printf(")");
         } break;
 

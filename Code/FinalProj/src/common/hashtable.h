@@ -27,5 +27,6 @@ void HashInsert(hash_table_t *table, u8 *key, void *data);
 bool HashContains(hash_table_t *table, u8 *key);
 
 void *HashGet(hash_table_t *table, u8 *key);
+bool HashContainsRet(hash_table_t *table, u8 *key, void **data);
 
 #endif

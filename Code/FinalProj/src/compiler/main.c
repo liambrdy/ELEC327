@@ -6,6 +6,7 @@
 #include "darray.h"
 #include "ast.h"
 #include "arena.h"
+#include "file.h"
 
 void usage(const char *exe) {
     printf("Usage: %s in_file [-o out_file] \n", exe);
@@ -59,22 +60,6 @@ int main(int argc, char **argv) {
         return result;
     }
 
-    FILE *f = fopen(args.in_file, "r");
-    if (!f) {
-        printf("%s: no such file or directory\n", args.in_file);
-        return 1;
-    }
-
-    fseek(f, 0, SEEK_END);
-    long fileLength = ftell(f);
-    rewind(f);
-
-    uint8_t *buffer = (uint8_t *)malloc(fileLength + 1);
-    size_t bytesRead = fread(buffer, 1, fileLength, f);
-    buffer[bytesRead] = '\0';
-
-    fclose(f);
-
     u64 globalArenaSize = Megabytes(100);
     u8 *globalArenaMem = (u8 *)malloc(globalArenaSize);
     if (!globalArenaMem) {
@@ -84,12 +69,19 @@ int main(int argc, char **argv) {
 
     globalArena = CreateArena(globalArenaMem, globalArenaSize);
 
-    token_t *tokens = tokenize(buffer, bytesRead + 1);
-    if (!tokens) {
+    loaded_file_t file = LoadFile(args.in_file);
+    if (!file.success) {
         return 1;
     }
 
-    // PrintTokens(tokens);
+    token_t *ppTokens = tokenize(file.buffer, file.bufferLen);
+    if (!ppTokens) {
+        return 1;
+    }
+
+    token_t *tokens = preprocess(ppTokens, args.in_file);
+
+    PrintTokens(tokens);
 
     // printf("Used %ld of %ld bytes after lexer\n", globalArena->pos, globalArena->capacity);
 
@@ -103,11 +95,7 @@ int main(int argc, char **argv) {
     // printf("Used %ld of %ld bytes after ast\n", globalArena->pos, globalArena->capacity);
     // printf("Used %d bytes by darray\n", bytesAllocated);
 
-    free(buffer);
     free(globalArenaMem);
 
     return 0;
 }
-
-//TODO add arena allocator
-//TODO implement preprocessors

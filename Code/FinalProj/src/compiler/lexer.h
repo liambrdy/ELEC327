@@ -2,12 +2,16 @@
 #define _LEXER_H
 
 #include "common.h"
+#include "hashtable.h"
 
 typedef enum token_type {
     TOKEN_IDENTIFIER,
     TOKEN_LITERAL,
     TOKEN_PUNCTUATION,
     TOKEN_KEYWORD,
+
+    TOKEN_HASH,
+    TOKEN_NEW_LINE,
     TOKEN_EOF,
 } token_type;
 
@@ -72,6 +76,7 @@ typedef enum token_punctuation_type {
     PUNCTUATION_SHR,
 
     PUNCTUATION_COMMENT,
+    PUNCTUATION_BACKSLASH,
 
     PUNCTUATION_COUNT,
 } token_punctuation_type;
@@ -120,14 +125,13 @@ typedef enum token_keyword_type {
 } token_keyword_type;
 
 typedef enum pre_type {
-    PRE_IF,
+    PRE_DEFINE,
     PRE_IFDEF,
     PRE_IFNDEF,
-    PRE_ELIF,
     PRE_ELSE,
     PRE_ENDIF,
-    PRE_DEFINE,
     PRE_INCLUDE,
+
     PRE_COUNT,
 } pre_type;
 
@@ -157,7 +161,38 @@ typedef struct token_t {
     int line;
 } token_t;
 
+typedef struct macro_t {
+    token_t *replacement;
+} macro_t;
+
+typedef struct conditional_level_t {
+    bool parentActive;
+    bool thisBranchTaken;
+    bool currentlyActive;
+} conditional_level_t;
+
+typedef struct file_context_t {
+    token_t *tokens;
+    int cursor;
+    u8 *filename;
+} file_context_t;
+
+typedef struct preprocessor_t {
+    token_t *input;
+    int cursor;
+    bool atLineStart;
+
+    hash_table_t *macroTable;
+    conditional_level_t *condStack;
+    file_context_t *includeStack;
+
+    u8 *currentFile;
+
+    token_t *output;
+} preprocessor_t;
+
 token_t *tokenize(u8 *buffer, int bufferSize);
+token_t *preprocess(token_t *ppTokens, u8 *filename);
 
 void PrintTokens(token_t *tokens);
 
