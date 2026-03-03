@@ -83,12 +83,10 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    token_t *ppTokens = tokenize(file.buffer, file.bufferLen);
-    if (!ppTokens) {
+    token_t *tokens = tokenize(file.buffer, file.bufferLen, args.in_file, args.inc_dirs);
+    if (!tokens) {
         return 1;
     }
-
-    token_t *tokens = preprocess(ppTokens, args.in_file, args.inc_dirs);
 
     PrintTokens(tokens);
 

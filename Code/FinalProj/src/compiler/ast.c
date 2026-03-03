@@ -62,7 +62,7 @@ ast_node_t *ParsePrimaryExpression(parser_t *p) {
     switch (t->type) {
         case TOKEN_IDENTIFIER: {
             ast_node_t *new = GetNewNode(AST_IDENTIFIER);
-            new->identifier.name = t->lexeme;
+            new->identifier.name = SliceToStr(&t->strLiteral);
 
             Advance(p);
 
@@ -71,10 +71,10 @@ ast_node_t *ParsePrimaryExpression(parser_t *p) {
 
         case TOKEN_LITERAL: {
             token_literal_type litType = t->litType;
-            ast_node_t *new = GetNewNode(litType == LITERAL_INT ? AST_LITERAL_INT : AST_LITERAL_STRING);
+            ast_node_t *new = GetNewNode((litType == LITERAL_INT || litType == LITERAL_CHAR) ? AST_LITERAL_INT : AST_LITERAL_STRING);
             
-            if (litType == LITERAL_INT) new->int_literal.literal = t->intLiteral;
-            if (litType == LITERAL_STRING) new->string_literal.literal = t->strLiteral;
+            if (litType == LITERAL_INT || litType == LITERAL_CHAR) new->int_literal.literal = t->intLiteral;
+            if (litType == LITERAL_STRING) new->string_literal.str = t->strLiteral;
 
             Advance(p);
 
@@ -147,7 +147,7 @@ ast_node_t *ParsePostfixExpression(parser_t *p) {
 
                 ast_node_t *new = GetNewNode(AST_MEMBER);
                 new->member.parent = primaryExpr;
-                new->member.member = member->lexeme;
+                new->member.member = SliceToStr(&member->lexeme);
                 new->member.isPointer = t->puncType == PUNCTUATION_RIGHT_ARROW;
 
                 primaryExpr = new;
@@ -409,7 +409,7 @@ void ParseTypeSpecifier(parser_t *p, decl_specifiers_t *spec) {
         spec->typeSpecifier->struct_union.isUnion = Previous(p)->keywordType == KEYWORD_UNION;
         
         if (Match(p, TOKEN_IDENTIFIER)) {
-            spec->typeSpecifier->struct_union.name = Previous(p)->lexeme;
+            spec->typeSpecifier->struct_union.name = SliceToStr(&Previous(p)->lexeme);
         }
 
         if (MatchPunctuation(p, PUNCTUATION_OPEN_CURLY)) {
@@ -431,7 +431,7 @@ void ParseTypeSpecifier(parser_t *p, decl_specifiers_t *spec) {
         spec->typeSpecifier->kind = SPECIFIER_ENUM;
 
         if (Match(p, TOKEN_IDENTIFIER)) {
-            spec->typeSpecifier->enum_type.name = Previous(p)->lexeme;
+            spec->typeSpecifier->enum_type.name = SliceToStr(&Previous(p)->lexeme);
         }
 
         if (MatchPunctuation(p, PUNCTUATION_OPEN_CURLY)) {
@@ -440,7 +440,7 @@ void ParseTypeSpecifier(parser_t *p, decl_specifiers_t *spec) {
                 ast_enum_item_t item = {0};
 
                 token_t *name = Expect(p, TOKEN_IDENTIFIER, "expects identifier for enum element name");
-                item.name = name->lexeme;
+                item.name = SliceToStr(&name->lexeme);
 
                 if (MatchPunctuation(p, PUNCTUATION_EQUALS)) {
                     item.value = ParseConstantExpression(p);
@@ -491,7 +491,7 @@ decl_specifiers_t *ParseDeclarationSpecifiers(parser_t *p) {
                 ParseTypeSpecifier(p, spec);
             }
         } else if (t->type == TOKEN_IDENTIFIER) {
-            if (HashContains(p->scope->symbols, t->lexeme)) {
+            if (HashContains(p->scope->symbols, &t->lexeme)) {
                 if (spec->typeSpecifier) {
                     printf("declaration specifiers already has type specifier\n");
                     return NULL;
@@ -499,9 +499,9 @@ decl_specifiers_t *ParseDeclarationSpecifiers(parser_t *p) {
 
                 spec->typeSpecifier = PushStruct(globalArena, type_specifier_t);
                 spec->typeSpecifier->kind = SPECIFIER_TYPEDEF_NAME;
-                spec->typeSpecifier->typedef_type.name = t->lexeme;
+                spec->typeSpecifier->typedef_type.name = SliceToStr(&t->lexeme);
             } else if (!advancedOnce) {
-                printf("unknown type on line %d: %s\n", t->line + 1, t->lexeme);
+                printf("unknown type on line %d: " SLICE_STR "\n", t->line + 1, SLICE_ARGS(t->lexeme));
                 return NULL;
             } else {
                 return spec;
@@ -556,7 +556,7 @@ ast_declarator_t *ParseDirectDeclarator(parser_t *p, bool isAbstract) {
     } else if (Match(p, TOKEN_IDENTIFIER)) {
         inner = PushStruct(globalArena, ast_declarator_t);
         inner->kind = DECL_IDENTIFIER;
-        inner->identifier.name = Previous(p)->lexeme;
+        inner->identifier.name = SliceToStr(&Previous(p)->lexeme);
     } else if (!isAbstract) {
         printf("expect open parenthese or identifier in direct declarator\n");
         return NULL;
@@ -656,7 +656,7 @@ ast_designator_t *ParseDesignator(parser_t *p) {
 
         token_t *field = Expect(p, TOKEN_IDENTIFIER, "expects identifier in field designator");
         
-        des->field = field->lexeme;
+        des->field = SliceToStr(&field->lexeme);
     }
 
     return des;
@@ -745,7 +745,7 @@ ast_node_t *ParseDeclaration(parser_t *p) {
 
     decl_specifiers_t *declSpecifiers = ParseDeclarationSpecifiers(p);
     if (declSpecifiers == NULL) {
-        printf("expect known type, given %s\n", Peek(p)->lexeme);
+        printf("expect known type, given " SLICE_STR "\n", SLICE_ARGS(Peek(p)->lexeme));
         return NULL;
     }
 
@@ -826,7 +826,7 @@ bool IsTypeSpecifier(parser_t *p) {
             default: return false;
         }
     } else if (t->type == TOKEN_IDENTIFIER) {
-        if (HashContains(p->scope->symbols, t->lexeme)) {
+        if (HashContains(p->scope->symbols, &t->lexeme)) {
             return true;
         }
     }
@@ -1029,8 +1029,7 @@ ast_node_t *AstFromTokens(token_t *tokens) {
     
     PushScope(&p);
     
-    int tokenLen = DArrayLength(tokens);
-    while (p.pos < tokenLen) {
+    while (!Match(&p, TOKEN_EOF)) {
         ast_node_t *unit = ParseTranslationUnit(&p);
         if (!unit) {
             return NULL;
@@ -1173,6 +1172,7 @@ void PrintAstDeclarator(ast_declarator_t *decl, int depth) {
                     printf(" %s", TypeQualifierToStr((type_qualifier)(1 << i)));
                 }
             }
+
             if (decl->pointer.inner)
                 PrintAstDeclarator(decl->pointer.inner, depth);
         } break;
@@ -1516,7 +1516,7 @@ void PrintAst(ast_node_t *parent, int depth) {
         } break;
 
         case AST_LITERAL_STRING: {
-            printf("\"%s\"", parent->string_literal.literal);
+            printf("\"" SLICE_STR "\"", SLICE_ARGS(parent->string_literal.str));
         } break;
 
         case AST_IDENTIFIER: {

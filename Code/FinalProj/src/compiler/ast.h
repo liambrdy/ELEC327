@@ -444,7 +444,7 @@ typedef struct ast_node_t {
         } int_literal;
 
         struct {
-            u8 *literal;
+            slice_t str;
         } string_literal;
 
         struct {

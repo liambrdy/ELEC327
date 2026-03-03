@@ -2,7 +2,9 @@
 #define _LEXER_H
 
 #include "common.h"
+#include "darray.h"
 #include "hashtable.h"
+#include "str.h"
 
 typedef enum token_type {
     TOKEN_IDENTIFIER,
@@ -19,6 +21,7 @@ typedef enum token_literal_type {
     LITERAL_INT,
     LITERAL_REAL,
     LITERAL_STRING,
+    LITERAL_CHAR,
 } token_literal_type;
 
 typedef enum token_punctuation_type {
@@ -150,14 +153,14 @@ typedef struct token_t {
             union {
                 int intLiteral;
                 float realLiteral;
-                u8 *strLiteral;
+                slice_t strLiteral;
             };
         };
 
         int typeType;
     };
 
-    u8 *lexeme;
+    slice_t lexeme;
     int line;
 } token_t;
 
@@ -171,15 +174,20 @@ typedef struct conditional_level_t {
     bool currentlyActive;
 } conditional_level_t;
 
+typedef struct lexer_t {
+    u8 *buffer;
+    u32 bufferLen;
+    u32 cursor;
+} lexer_t;
+
 typedef struct file_context_t {
-    token_t *tokens;
-    int cursor;
+    lexer_t lex;
     u8 *filename;
 } file_context_t;
 
 typedef struct preprocessor_t {
-    token_t *input;
-    int cursor;
+    lexer_t lex;
+
     bool atLineStart;
 
     hash_table_t *macroTable;
@@ -189,11 +197,13 @@ typedef struct preprocessor_t {
     u8 *currentFile;
     u8 **incDirs;
 
+    token_t lookAhead[2];
+    u32 lookAheadCount;
+
     token_t *output;
 } preprocessor_t;
 
-token_t *tokenize(u8 *buffer, int bufferSize);
-token_t *preprocess(token_t *ppTokens, u8 *filename, u8 **incDirs);
+token_t *tokenize(u8 *buffer, u32 bufferSize, u8 *filename, u8 **incDirs);
 
 void PrintTokens(token_t *tokens);
 

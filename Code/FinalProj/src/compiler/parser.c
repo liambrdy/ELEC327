@@ -117,5 +117,5 @@ void PopScope(parser_t *p) {
 }
 
 void InsertSymbol(parser_t *p, u8 *name, symbol_kind kind) {
-    HashInsert(p->scope->symbols, name, &kind);
+    HashInsertStr(p->scope->symbols, name, &kind);
 }
