@@ -44,6 +44,6 @@ token_t *ExpectPunctuation(parser_t *p, token_punctuation_type type, const char 
 void PushScope(parser_t *p);
 void PopScope(parser_t *p);
 
-void InsertSymbol(parser_t *p, u8 *name, symbol_kind kind);
+void InsertSymbol(parser_t *p, slice_t *name, symbol_kind kind);
 
 #endif
