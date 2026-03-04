@@ -40,8 +40,10 @@ void HashInsert(hash_table_t *table, slice_t *key, void *data) {
     hash_item_t *newItem = (hash_item_t *)malloc(sizeof(hash_item_t));
     newItem->key = SliceToStr(key);
 
-    newItem->data = malloc(table->dataSize);
-    memcpy(newItem->data, data, table->dataSize);
+    if (data) {
+        newItem->data = malloc(table->dataSize);
+        memcpy(newItem->data, data, table->dataSize);
+    }
 
     newItem->nextItem = table->data[bucket];
     table->data[bucket] = newItem;

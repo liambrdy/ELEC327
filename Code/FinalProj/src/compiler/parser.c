@@ -103,19 +103,19 @@ token_t *ExpectPunctuation(parser_t *p, token_punctuation_type type, const char 
     return _Expect(p, TOKEN_PUNCTUATION, type, error_msg);
 }
 
-void PushScope(parser_t *p) {
-    scope_t *scope = (scope_t *)malloc(sizeof(scope_t));
-    scope->symbols = CreateHashTable(sizeof(symbol_kind));
+void PushTypedefScope(parser_t *p) {
+    typedef_scope_t *scope = (typedef_scope_t *)malloc(sizeof(typedef_scope_t));
+    scope->typedefs = CreateHashTable(sizeof(u8));
     scope->parentScope = p->scope;
     p->scope = scope;
 }
 
-void PopScope(parser_t *p) {
-    scope_t *old = p->scope;
+void PopTypedefScope(parser_t *p) {
+    typedef_scope_t *old = p->scope;
     p->scope = old->parentScope;
     free(old);
 }
 
-void InsertSymbol(parser_t *p, slice_t *name, symbol_kind kind) {
-    HashInsert(p->scope->symbols, name, &kind);
+void InsertTypedef(parser_t *p, slice_t *name) {
+    HashInsert(p->scope->typedefs, name, NULL);
 }

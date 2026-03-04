@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "lexer.h"
+#include "semantics.h"
 
 #include <stdbool.h>
 
@@ -375,8 +376,14 @@ typedef struct ast_statement_t {
     };
 } ast_statement_t;
 
+typedef struct type_t type_t;
+typedef struct symbol_t symbol_t;
+
 typedef struct ast_node_t {
     ast_node_type type;
+
+    type_t *resolvedType;
+    symbol_t *symbol;
 
     union {
         struct {

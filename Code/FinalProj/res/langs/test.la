@@ -9,6 +9,11 @@ typedef struct ret_t {
     u8 c;
 } ret_t;
 
+typedef enum ret_code {
+    RET_SUCCESS = 15,
+    RET_FAIL,
+} ret_code;
+
 int main() {
     ret_t s = {
         .ret = X,
@@ -21,6 +26,8 @@ int main() {
     for (int i = 0; i < 4; i++) {
         printf("%d\n", i);
     }
+
+    ret_code c = RET_SUCCESS;
     
     printf(s.msg);
     return s.ret;

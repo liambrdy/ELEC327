@@ -491,7 +491,7 @@ decl_specifiers_t *ParseDeclarationSpecifiers(parser_t *p) {
                 ParseTypeSpecifier(p, spec);
             }
         } else if (t->type == TOKEN_IDENTIFIER) {
-            if (HashContains(p->scope->symbols, &t->lexeme)) {
+            if (HashContains(p->scope->typedefs, &t->lexeme)) {
                 if (spec->typeSpecifier) {
                     printf("declaration specifiers already has type specifier\n");
                     return NULL;
@@ -769,7 +769,7 @@ ast_node_t *ParseDeclaration(parser_t *p) {
                     }
                 }
 
-                InsertSymbol(p, &decl->identifier.name, SYMBOL_TYPEDEF);
+                InsertTypedef(p, &decl->identifier.name);
             }
 
             DArrayPush(new->decl.initDeclList, declarator);
@@ -826,7 +826,7 @@ bool IsTypeSpecifier(parser_t *p) {
             default: return false;
         }
     } else if (t->type == TOKEN_IDENTIFIER) {
-        if (HashContains(p->scope->symbols, &t->lexeme)) {
+        if (HashContains(p->scope->typedefs, &t->lexeme)) {
             return true;
         }
     }
@@ -1027,7 +1027,7 @@ ast_node_t *AstFromTokens(token_t *tokens) {
     p.pos = 0;
     p.scope = NULL;
     
-    PushScope(&p);
+    PushTypedefScope(&p);
     
     while (!Match(&p, TOKEN_EOF)) {
         ast_node_t *unit = ParseTranslationUnit(&p);
@@ -1037,6 +1037,8 @@ ast_node_t *AstFromTokens(token_t *tokens) {
 
         DArrayPush(program->program.units, unit);
     }
+
+    PopTypedefScope(&p);
 
     return program;
 }
