@@ -3,6 +3,7 @@
 
 #include "common.h"
 #include "lexer.h"
+#include "semantics.h"
 
 #include <stdbool.h>
 
@@ -136,7 +137,7 @@ typedef struct builtin_type_t {
 } builtin_type_t;
 
 typedef struct ast_enum_item_t {
-    u8 *name;
+    slice_t name;
     ast_node_t *value;
 } ast_enum_item_t;
 
@@ -147,18 +148,18 @@ typedef struct type_specifier_t {
         struct { builtin_type_t type; } builtin;
 
         struct {
-            u8 *name;
+            slice_t name;
             ast_decl_t *fields;
             bool isUnion;
         } struct_union;
 
         struct {
-            u8 *name;
+            slice_t name;
             ast_enum_item_t *enumerators;
         } enum_type;
 
         struct {
-            u8 *name;
+            slice_t name;
         } typedef_type;
     };
 } type_specifier_t;
@@ -188,7 +189,7 @@ typedef struct ast_declarator_t {
     declarator_kind kind;
 
     union {
-        struct { u8 *name; } identifier;
+        struct { slice_t name; } identifier;
         
         struct {
             struct ast_declarator_t *inner;
@@ -217,7 +218,7 @@ typedef struct ast_designator_t {
 
     union {
         ast_node_t *index;
-        u8 *field;
+        slice_t field;
     };
 } ast_designator_t;
 
@@ -275,7 +276,7 @@ typedef struct ast_labeled_statement_t {
 
     union {
         struct {
-            u8 *ident;
+            slice_t ident;
         } identifier;
 
         struct {
@@ -348,7 +349,6 @@ typedef struct ast_jump_statement_t {
     jump_statement_kind kind;
 
     union {
-        struct { u8 *identifier; } goto_statement;
         struct { ast_node_t *expr; } return_statement;
     };
 } ast_jump_statement_t;
@@ -376,8 +376,14 @@ typedef struct ast_statement_t {
     };
 } ast_statement_t;
 
+typedef struct type_t type_t;
+typedef struct symbol_t symbol_t;
+
 typedef struct ast_node_t {
     ast_node_type type;
+
+    type_t *resolvedType;
+    symbol_t *symbol;
 
     union {
         struct {
@@ -435,7 +441,7 @@ typedef struct ast_node_t {
 
         struct {
             ast_node_t *parent;
-            u8 *member;
+            slice_t member;
             bool isPointer;
         } member;
 
@@ -444,11 +450,11 @@ typedef struct ast_node_t {
         } int_literal;
 
         struct {
-            u8 *literal;
+            slice_t str;
         } string_literal;
 
         struct {
-            u8 *name;
+            slice_t name;
         } identifier;
     };
 } ast_node_t;

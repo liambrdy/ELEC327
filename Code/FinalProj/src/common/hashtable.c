@@ -3,35 +3,33 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "arena.h"
+
 hash_table_t *CreateHashTable(u32 dataSize) {
-    hash_table_t *table = (hash_table_t *)malloc(sizeof(hash_table_t));
-    memset(table, 0, sizeof(hash_table_t));
+    hash_table_t *table = PushStruct(globalArena, hash_table_t);
     
     table->dataSize = dataSize;
-
-    // for (int i = 0; i < ARRAY_LEN(table->data); i++) {
-    //     table->data[i].prevItem = table->data[i].nextItem = table->data + i;
-    // }
 
     return table;
 }
 
-static u32 Hash(u8 *key) {
+static u32 Hash(slice_t *key) {
     unsigned long hash = 5381;
-    int c;
 
-    while (c = *key++)
+    for (int i = 0; i < key->len; i++) {
+        u8 c = key->str[i];
         hash = ((hash << 5) + hash) + c;
+    }
 
     return hash;
 }
 
-void HashInsert(hash_table_t *table, u8 *key, void *data) {
+void HashInsert(hash_table_t *table, slice_t *key, void *data) {
     u32 bucket = Hash(key) % BUCKET_COUNT;
     
     hash_item_t *current = table->data[bucket];
     while (current != NULL) {
-        if (strcmp(current->key, key) == 0) {
+        if (CompareSliceToStr(key, current->key, strlen(current->key))) {
             memcpy(current->data, data, table->dataSize);
             return;
         }
@@ -40,22 +38,32 @@ void HashInsert(hash_table_t *table, u8 *key, void *data) {
     }
 
     hash_item_t *newItem = (hash_item_t *)malloc(sizeof(hash_item_t));
-    newItem->key = (u8 *)malloc(strlen(key) + 1);
-    strcpy(newItem->key, key);
+    newItem->key = SliceToStr(key);
 
-    newItem->data = malloc(table->dataSize);
-    memcpy(newItem->data, data, table->dataSize);
+    if (data) {
+        newItem->data = malloc(table->dataSize);
+        memcpy(newItem->data, data, table->dataSize);
+    }
 
     newItem->nextItem = table->data[bucket];
     table->data[bucket] = newItem;
 }
 
-bool HashContains(hash_table_t *table, u8 *key) {
+void HashInsertStr(hash_table_t *table, u8 *key, void *data) {
+    slice_t keySlice = {
+        .str = key,
+        .len = strlen(key)
+    };
+
+    HashInsert(table, &keySlice, data);
+}
+
+bool HashContains(hash_table_t *table, slice_t *key) {
     u32 bucket = Hash(key) % BUCKET_COUNT;
 
     hash_item_t *current = table->data[bucket];
     while (current != NULL) {
-        if (strcmp(key, current->key) == 0) {
+        if (CompareSliceToStr(key, current->key, strlen(current->key))) {
             return true;
         }
 
@@ -65,12 +73,12 @@ bool HashContains(hash_table_t *table, u8 *key) {
     return false;
 }
 
-void *HashGet(hash_table_t *table, u8 *key) {
+void *HashGet(hash_table_t *table, slice_t *key) {
     u32 bucket = Hash(key) % BUCKET_COUNT;
 
     hash_item_t *current = table->data[bucket];    
     while (current != NULL) {
-        if (strcmp(key, current->key) == 0) {
+        if (CompareSliceToStr(key, current->key, strlen(current->key))) {
             return current->data;
         }
 
@@ -78,4 +86,20 @@ void *HashGet(hash_table_t *table, u8 *key) {
     }
 
     return NULL;
+}
+
+bool HashContainsRet(hash_table_t *table, slice_t *key, void **data) {
+    u32 bucket = Hash(key) % BUCKET_COUNT;
+
+    hash_item_t *current = table->data[bucket];    
+    while (current != NULL) {
+        if (CompareSliceToStr(key, current->key, strlen(current->key))) {
+            *data = current->data;
+            return true;
+        }
+
+        current = current->nextItem;
+    }
+
+    return false;
 }

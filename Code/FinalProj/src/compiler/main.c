@@ -6,15 +6,17 @@
 #include "darray.h"
 #include "ast.h"
 #include "arena.h"
+#include "file.h"
 
 void usage(const char *exe) {
-    printf("Usage: %s in_file [-o out_file] \n", exe);
+    printf("Usage: %s in_file [-o out_file] [-Iinc_dir]\n", exe);
 }
 
 typedef struct args_t {
-    char *in_file; // required
+    u8 *in_file; // required
     
-    char *out_file; // not required
+    u8 *out_file; // not required
+    u8 **inc_dirs; // not required
 } args_t;
 
 int parse(int argc, char **argv, args_t *outArgs) {
@@ -30,6 +32,14 @@ int parse(int argc, char **argv, args_t *outArgs) {
                 case 'o': {
                     i++;
                     outArgs->out_file = argv[i];
+                } break;
+
+                case 'I': {
+                    if (!outArgs->inc_dirs) {
+                        outArgs->inc_dirs = DArrayCreate(u8 *);
+                    }
+                    u8 *dir = argv[i] + 2;
+                    DArrayPush(outArgs->inc_dirs, dir);
                 } break;
 
                 default: {
@@ -59,22 +69,6 @@ int main(int argc, char **argv) {
         return result;
     }
 
-    FILE *f = fopen(args.in_file, "r");
-    if (!f) {
-        printf("%s: no such file or directory\n", args.in_file);
-        return 1;
-    }
-
-    fseek(f, 0, SEEK_END);
-    long fileLength = ftell(f);
-    rewind(f);
-
-    uint8_t *buffer = (uint8_t *)malloc(fileLength + 1);
-    size_t bytesRead = fread(buffer, 1, fileLength, f);
-    buffer[bytesRead] = '\0';
-
-    fclose(f);
-
     u64 globalArenaSize = Megabytes(100);
     u8 *globalArenaMem = (u8 *)malloc(globalArenaSize);
     if (!globalArenaMem) {
@@ -84,14 +78,19 @@ int main(int argc, char **argv) {
 
     globalArena = CreateArena(globalArenaMem, globalArenaSize);
 
-    token_t *tokens = tokenize(buffer, bytesRead + 1);
+    loaded_file_t file = LoadFile(args.in_file);
+    if (!file.success) {
+        return 1;
+    }
+
+    token_t *tokens = tokenize(file.buffer, file.bufferLen, args.in_file, args.inc_dirs);
     if (!tokens) {
         return 1;
     }
 
-    // PrintTokens(tokens);
+    PrintTokens(tokens);
 
-    // printf("Used %ld of %ld bytes after lexer\n", globalArena->pos, globalArena->capacity);
+    printf("Used %ld of %ld bytes after lexer\n", globalArena->pos, globalArena->capacity);
 
     ast_node_t *ast = AstFromTokens(tokens);
     if (!ast) {
@@ -100,14 +99,10 @@ int main(int argc, char **argv) {
 
     PrintAst(ast, 0);
 
-    // printf("Used %ld of %ld bytes after ast\n", globalArena->pos, globalArena->capacity);
-    // printf("Used %d bytes by darray\n", bytesAllocated);
+    printf("Used %ld of %ld bytes after ast\n", globalArena->pos, globalArena->capacity);
+    printf("Used %d bytes by darray\n", bytesAllocated);
 
-    free(buffer);
     free(globalArenaMem);
 
     return 0;
 }
-
-//TODO add arena allocator
-//TODO implement preprocessors

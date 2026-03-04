@@ -2,6 +2,7 @@
 #define _HASHTABLE_H
 
 #include "common.h"
+#include "str.h"
 
 #include <stdbool.h>
 
@@ -23,9 +24,11 @@ typedef struct hash_table_t {
 
 hash_table_t *CreateHashTable(u32 dataSize);
 
-void HashInsert(hash_table_t *table, u8 *key, void *data);
-bool HashContains(hash_table_t *table, u8 *key);
+void HashInsert(hash_table_t *table, slice_t *key, void *data);
+void HashInsertStr(hash_table_t *table, u8 *key, void *data);
+bool HashContains(hash_table_t *table, slice_t *key);
 
-void *HashGet(hash_table_t *table, u8 *key);
+void *HashGet(hash_table_t *table, slice_t *key);
+bool HashContainsRet(hash_table_t *table, slice_t *key, void **data);
 
 #endif

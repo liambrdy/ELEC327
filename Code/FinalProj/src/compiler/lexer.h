@@ -2,12 +2,18 @@
 #define _LEXER_H
 
 #include "common.h"
+#include "darray.h"
+#include "hashtable.h"
+#include "str.h"
 
 typedef enum token_type {
     TOKEN_IDENTIFIER,
     TOKEN_LITERAL,
     TOKEN_PUNCTUATION,
     TOKEN_KEYWORD,
+
+    TOKEN_HASH,
+    TOKEN_NEW_LINE,
     TOKEN_EOF,
 } token_type;
 
@@ -15,6 +21,7 @@ typedef enum token_literal_type {
     LITERAL_INT,
     LITERAL_REAL,
     LITERAL_STRING,
+    LITERAL_CHAR,
 } token_literal_type;
 
 typedef enum token_punctuation_type {
@@ -72,6 +79,7 @@ typedef enum token_punctuation_type {
     PUNCTUATION_SHR,
 
     PUNCTUATION_COMMENT,
+    PUNCTUATION_BACKSLASH,
 
     PUNCTUATION_COUNT,
 } token_punctuation_type;
@@ -120,14 +128,13 @@ typedef enum token_keyword_type {
 } token_keyword_type;
 
 typedef enum pre_type {
-    PRE_IF,
+    PRE_DEFINE,
     PRE_IFDEF,
     PRE_IFNDEF,
-    PRE_ELIF,
     PRE_ELSE,
     PRE_ENDIF,
-    PRE_DEFINE,
     PRE_INCLUDE,
+
     PRE_COUNT,
 } pre_type;
 
@@ -146,18 +153,57 @@ typedef struct token_t {
             union {
                 int intLiteral;
                 float realLiteral;
-                u8 *strLiteral;
+                slice_t strLiteral;
             };
         };
 
         int typeType;
     };
 
-    u8 *lexeme;
+    slice_t lexeme;
     int line;
 } token_t;
 
-token_t *tokenize(u8 *buffer, int bufferSize);
+typedef struct macro_t {
+    token_t *replacement;
+} macro_t;
+
+typedef struct conditional_level_t {
+    bool parentActive;
+    bool thisBranchTaken;
+    bool currentlyActive;
+} conditional_level_t;
+
+typedef struct lexer_t {
+    u8 *buffer;
+    u32 bufferLen;
+    u32 cursor;
+} lexer_t;
+
+typedef struct file_context_t {
+    lexer_t lex;
+    u8 *filename;
+} file_context_t;
+
+typedef struct preprocessor_t {
+    lexer_t lex;
+
+    bool atLineStart;
+
+    hash_table_t *macroTable;
+    conditional_level_t *condStack;
+    file_context_t *includeStack;
+
+    u8 *currentFile;
+    u8 **incDirs;
+
+    token_t lookAhead[2];
+    u32 lookAheadCount;
+
+    token_t *output;
+} preprocessor_t;
+
+token_t *tokenize(u8 *buffer, u32 bufferSize, u8 *filename, u8 **incDirs);
 
 void PrintTokens(token_t *tokens);
 

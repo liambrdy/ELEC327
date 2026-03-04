@@ -62,7 +62,7 @@ ast_node_t *ParsePrimaryExpression(parser_t *p) {
     switch (t->type) {
         case TOKEN_IDENTIFIER: {
             ast_node_t *new = GetNewNode(AST_IDENTIFIER);
-            new->identifier.name = t->lexeme;
+            new->identifier.name = t->strLiteral;
 
             Advance(p);
 
@@ -71,10 +71,10 @@ ast_node_t *ParsePrimaryExpression(parser_t *p) {
 
         case TOKEN_LITERAL: {
             token_literal_type litType = t->litType;
-            ast_node_t *new = GetNewNode(litType == LITERAL_INT ? AST_LITERAL_INT : AST_LITERAL_STRING);
+            ast_node_t *new = GetNewNode((litType == LITERAL_INT || litType == LITERAL_CHAR) ? AST_LITERAL_INT : AST_LITERAL_STRING);
             
-            if (litType == LITERAL_INT) new->int_literal.literal = t->intLiteral;
-            if (litType == LITERAL_STRING) new->string_literal.literal = t->strLiteral;
+            if (litType == LITERAL_INT || litType == LITERAL_CHAR) new->int_literal.literal = t->intLiteral;
+            if (litType == LITERAL_STRING) new->string_literal.str = t->strLiteral;
 
             Advance(p);
 
@@ -423,7 +423,7 @@ void ParseTypeSpecifier(parser_t *p, decl_specifiers_t *spec) {
                     break;
                 }
             } while (1);
-        } else if (!spec->typeSpecifier->struct_union.name) {
+        } else if (!spec->typeSpecifier->struct_union.name.str) {
             printf("expects identifier if no struct declaration");
             return;
         }
@@ -456,7 +456,7 @@ void ParseTypeSpecifier(parser_t *p, decl_specifiers_t *spec) {
                     break;
 
             } while (1);
-        } else if (!spec->typeSpecifier->enum_type.name) {
+        } else if (!spec->typeSpecifier->enum_type.name.str) {
             printf("expects identifier if no enum declaration");
             return;
         }
@@ -491,7 +491,7 @@ decl_specifiers_t *ParseDeclarationSpecifiers(parser_t *p) {
                 ParseTypeSpecifier(p, spec);
             }
         } else if (t->type == TOKEN_IDENTIFIER) {
-            if (HashContains(p->scope->symbols, t->lexeme)) {
+            if (HashContains(p->scope->typedefs, &t->lexeme)) {
                 if (spec->typeSpecifier) {
                     printf("declaration specifiers already has type specifier\n");
                     return NULL;
@@ -501,6 +501,7 @@ decl_specifiers_t *ParseDeclarationSpecifiers(parser_t *p) {
                 spec->typeSpecifier->kind = SPECIFIER_TYPEDEF_NAME;
                 spec->typeSpecifier->typedef_type.name = t->lexeme;
             } else if (!advancedOnce) {
+                printf("unknown type on line %d: " SLICE_STR "\n", t->line + 1, SLICE_ARGS(t->lexeme));
                 return NULL;
             } else {
                 return spec;
@@ -744,7 +745,7 @@ ast_node_t *ParseDeclaration(parser_t *p) {
 
     decl_specifiers_t *declSpecifiers = ParseDeclarationSpecifiers(p);
     if (declSpecifiers == NULL) {
-        printf("expect known type, given %s\n", Peek(p)->lexeme);
+        printf("expect known type, given " SLICE_STR "\n", SLICE_ARGS(Peek(p)->lexeme));
         return NULL;
     }
 
@@ -768,7 +769,7 @@ ast_node_t *ParseDeclaration(parser_t *p) {
                     }
                 }
 
-                InsertSymbol(p, decl->identifier.name, SYMBOL_TYPEDEF);
+                InsertTypedef(p, &decl->identifier.name);
             }
 
             DArrayPush(new->decl.initDeclList, declarator);
@@ -825,7 +826,7 @@ bool IsTypeSpecifier(parser_t *p) {
             default: return false;
         }
     } else if (t->type == TOKEN_IDENTIFIER) {
-        if (HashContains(p->scope->symbols, t->lexeme)) {
+        if (HashContains(p->scope->typedefs, &t->lexeme)) {
             return true;
         }
     }
@@ -950,8 +951,12 @@ ast_node_t *ParseStatement(parser_t *p) {
 
                 for (int i = 0; i < 3; i++) {
                     if (i < 2 && !MatchPunctuation(p, PUNCTUATION_SEMICOLON)) {
-                        statement->statement.iteration.for_statement.expressions[i] = ParseExpression(p);
-                        ExpectPunctuation(p, PUNCTUATION_SEMICOLON, "expects semicolon after each `for` expression");
+                        if (i == 0 && IsDeclarationStart(p)) {
+                            statement->statement.iteration.for_statement.expressions[i] = ParseDeclaration(p);
+                        } else {
+                            statement->statement.iteration.for_statement.expressions[i] = ParseExpression(p);
+                            ExpectPunctuation(p, PUNCTUATION_SEMICOLON, "expects semicolon after each `for` expression");
+                        }
                     } else if (i == 2 && !MatchPunctuation(p, PUNCTUATION_CLOSE_PAREN)) {
                         statement->statement.iteration.for_statement.expressions[i] = ParseExpression(p);
                         ExpectPunctuation(p, PUNCTUATION_CLOSE_PAREN, "expects close parenthese after `for` condition");
@@ -1022,7 +1027,7 @@ ast_node_t *AstFromTokens(token_t *tokens) {
     p.pos = 0;
     p.scope = NULL;
     
-    PushScope(&p);
+    PushTypedefScope(&p);
     
     while (!Match(&p, TOKEN_EOF)) {
         ast_node_t *unit = ParseTranslationUnit(&p);
@@ -1032,6 +1037,8 @@ ast_node_t *AstFromTokens(token_t *tokens) {
 
         DArrayPush(program->program.units, unit);
     }
+
+    PopTypedefScope(&p);
 
     return program;
 }
@@ -1100,11 +1107,11 @@ void PrintDeclSpecifiers(decl_specifiers_t *specifiers, int depth) {
             if (needSpace)
                 printf(" ");
             printf("%s ", spec->struct_union.isUnion ? "union" : "struct");
-            if (spec->struct_union.name) {
-                printf("%s ", spec->struct_union.name);
+            if (spec->struct_union.name.str) {
+                printf(SLICE_STR " ", SLICE_ARGS(spec->struct_union.name));
             }
 
-            printf("{\n");
+            printf("{\n%*s", (depth + 2) * 4, "");
 
             int fieldCount = DArrayLength(spec->struct_union.fields);
             for (int i = 0; i < fieldCount; i++) {
@@ -1114,6 +1121,10 @@ void PrintDeclSpecifiers(decl_specifiers_t *specifiers, int depth) {
 
                 PrintAst(&node, depth + 1);
                 printf(";\n");
+
+                if (i < fieldCount - 1) {
+                    printf("%*s", (depth + 2) * 4, "");
+                }
             }
             printf("%*s}", (depth + 1) * 4, "");
         } break;
@@ -1122,14 +1133,14 @@ void PrintDeclSpecifiers(decl_specifiers_t *specifiers, int depth) {
             if (needSpace)
                 printf(" ");
             printf("enum ");
-            if (spec->enum_type.name) {
-                printf("%s ", spec->enum_type.name);
+            if (spec->enum_type.name.str) {
+                printf(SLICE_STR " ", SLICE_ARGS(spec->enum_type.name));
             }
 
             printf("{\n");
             int enumCount = DArrayLength(spec->enum_type.enumerators);
             for (int i = 0; i < enumCount; i++) {
-                printf("%*s%s", (depth + 2)*4, "", spec->enum_type.enumerators[i].name);
+                printf("%*s" SLICE_STR, (depth + 2)*4, "", SLICE_ARGS(spec->enum_type.enumerators[i].name));
 
                 if (spec->enum_type.enumerators[i].value) {
                     printf(" = ");
@@ -1143,7 +1154,7 @@ void PrintDeclSpecifiers(decl_specifiers_t *specifiers, int depth) {
         } break;
 
         case SPECIFIER_TYPEDEF_NAME: {
-            printf("%s", spec->typedef_type.name);
+            printf(SLICE_STR, SLICE_ARGS(spec->typedef_type.name));
         } break;
 
         default: break;
@@ -1153,7 +1164,7 @@ void PrintDeclSpecifiers(decl_specifiers_t *specifiers, int depth) {
 void PrintAstDeclarator(ast_declarator_t *decl, int depth) {
     switch (decl->kind) {
         case DECL_IDENTIFIER: {
-            printf("%s", decl->identifier.name);
+            printf(SLICE_STR, SLICE_ARGS(decl->identifier.name));
         } break;
 
         case DECL_POINTER: {
@@ -1163,6 +1174,7 @@ void PrintAstDeclarator(ast_declarator_t *decl, int depth) {
                     printf(" %s", TypeQualifierToStr((type_qualifier)(1 << i)));
                 }
             }
+
             if (decl->pointer.inner)
                 PrintAstDeclarator(decl->pointer.inner, depth);
         } break;
@@ -1213,7 +1225,7 @@ void PrintAstInitializer(ast_initializer_t *initializer) {
                     for (int j = 0; j < designatorLen; j++) {
                         switch (init->designation[j]->kind) {
                             case DESIGNATOR_FIELD: {
-                                printf(".%s", init->designation[j]->field);
+                                printf("." SLICE_STR, SLICE_ARGS(init->designation[j]->field));
                             } break;
 
                             case DESIGNATOR_INDEX: {
@@ -1228,6 +1240,9 @@ void PrintAstInitializer(ast_initializer_t *initializer) {
                 }
 
                 PrintAstInitializer(init->initializer);
+                if (i < listLen - 1) {
+                    printf(", ");
+                }
             }
         } break;
     }
@@ -1263,7 +1278,7 @@ void PrintAstStatement(ast_statement_t *statement, int depth) {
                 }
             }
 
-            printf("}");
+            printf("\n%*s}", depth * 4, "");
         } break;
 
         case STATEMENT_LABELED: {
@@ -1284,11 +1299,11 @@ void PrintAstStatement(ast_statement_t *statement, int depth) {
 
         case STATEMENT_SELECTION: {
             if (statement->selection.kind == SELECTION_STATEMENT_IF) {
-                printf("\n%*sif (", (depth + 1) * 4, "");
+                printf("if (");
                 PrintAst(statement->selection.if_statement.condition, depth + 1);
                 printf(") ");
                 PrintAst(statement->selection.if_statement.ifStatement, depth + 1);
-                printf("\n%*s}", (depth + 1) * 4, "");
+                printf("}");
 
                 if (statement->selection.if_statement.elseStatement) {
                     printf(" else {\n");
@@ -1366,6 +1381,7 @@ void PrintAst(ast_node_t *parent, int depth) {
 
             int unitCount = DArrayLength(parent->program.units);
             for (int i = 0; i < unitCount; i++) {
+                printf("%*s", (depth + 1) * 4, "");
                 PrintAst(parent->program.units[i], depth + 1);
 
                 if (i < unitCount - 1) {
@@ -1406,14 +1422,14 @@ void PrintAst(ast_node_t *parent, int depth) {
         } break;
 
         case AST_FUNC_DEF: {
-            printf("%*sFunction(", depth * 4, "");
+            printf("Function(");
             if (parent->func_def.specs) {
                 PrintDeclSpecifiers(parent->func_def.specs, depth);
                 printf(" ");
             }
             PrintAstDeclarator(parent->func_def.declarator, depth);
-            printf("\n%*s", (depth + 1) * 4, "");
-            PrintAst(parent->func_def.statement, depth + 1);
+            printf(" ");
+            PrintAst(parent->func_def.statement, depth);
             printf(")");
         } break;
 
@@ -1494,7 +1510,7 @@ void PrintAst(ast_node_t *parent, int depth) {
         case AST_MEMBER: {
             printf("Member(");
             PrintAst(parent->member.parent, depth + 1);
-            printf("%s%s)", parent->member.isPointer ? "->" : ".", parent->member.member);
+            printf("%s" SLICE_STR ")", parent->member.isPointer ? "->" : ".", SLICE_ARGS(parent->member.member));
         } break;
 
         case AST_LITERAL_INT: {
@@ -1502,11 +1518,11 @@ void PrintAst(ast_node_t *parent, int depth) {
         } break;
 
         case AST_LITERAL_STRING: {
-            printf("\"%s\"", parent->string_literal.literal);
+            printf("\"" SLICE_STR "\"", SLICE_ARGS(parent->string_literal.str));
         } break;
 
         case AST_IDENTIFIER: {
-            printf("Ident(%s)", parent->identifier.name);
+            printf("Ident(" SLICE_STR ")", SLICE_ARGS(parent->identifier.name));
         } break;
 
         default: break;
