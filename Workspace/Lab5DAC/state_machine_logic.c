@@ -2,30 +2,34 @@
 #include <ti/devices/msp/msp.h>
 
 #include <stdbool.h>
+#include <math.h>
 
 #include "hw_interface.h"
+
+#define SAMPLE_RATE 32000.0f
 
 #define TICKS_TO_MS(ticks) (ticks * 0.6)
 #define MS_TO_TICKS(ms) (ms * 1.66)
 
-#define FREQ_TO_LOAD(hz) (8000000 / (4 * hz))
+#define FREQ_TO_DAC(hz) (SAMPLE_RATE / (4 * hz))
 
+#define G3 195.998
 #define C4 261.626f
 #define D4 293.66f
 #define E4 329.628f
 #define G4 391.995f
 
-#define CL FREQ_TO_LOAD(C4)
-#define DL FREQ_TO_LOAD(D4)
-#define EL FREQ_TO_LOAD(E4)
+#define CL FREQ_TO_DAC(C4)
+#define DL FREQ_TO_DAC(D4)
+#define EL FREQ_TO_DAC(E4)
 
 #define ARR_LEN(arr) (sizeof(arr) / sizeof((arr)[0]))
 
-uint16_t tones[4] = {
-    FREQ_TO_LOAD(391.995f),
-    FREQ_TO_LOAD(329.628f),
-    FREQ_TO_LOAD(261.626f),
-    FREQ_TO_LOAD(195.998f),
+float tones[4] = {
+    FREQ_TO_DAC(G4),
+    FREQ_TO_DAC(E4),
+    FREQ_TO_DAC(C4),
+    FREQ_TO_DAC(G3),
 };
 
 // bpm
@@ -91,29 +95,46 @@ state_t GetNextState(state_t current_state, uint32_t button_input) {
     return new_state;
 }
 
-void OutputFromState(state_t current_state) {
-    switch (current_state.state) {
+static uint8_t GetDataForDAC(state_t current_state) {
+    float val = sinf(2.0f * M_PI * current_state.dacCounter);
+    return (uint8_t)(val * 120 + 128);
+}
+
+void OutputFromState(state_t *current_state) {
+    switch (current_state->state) {
         case STATE_SONG: {
-            SetTimerA1Period(song[current_state.currentNote].period);
-            EnableTimerA1PWM();
+            EnableDAC();
+            current_state->dacCounter += song[current_state->currentNote].freq / SAMPLE_RATE;
+            
+            if (current_state->dacCounter >= 1.0f)
+                current_state->dacCounter -= 1.0f;
+
+            uint8_t val = GetDataForDAC(*current_state);
+            SetDACData(val);
         } break;
 
         case STATE_PAUSE: {
-            DisableTimerA1PWM();
+            DisableDAC();
         } break;
         
         case STATE_TONE: {
             int buttonDownCount = 0;
-            for (int i = 0; i < 4; i++) buttonDownCount += (int)current_state.buttonDown[i];
+            for (int i = 0; i < 4; i++) buttonDownCount += (int)current_state->buttonDown[i];
 
             if (buttonDownCount == 0) {
-                DisableTimerA1PWM();
+                DisableDAC();
             }
 
             for (int i = 0; i < 4; i++) {
-                if (current_state.buttonDown[i]) {
-                    SetTimerA1Period(tones[i]);
-                    EnableTimerA1PWM();
+                if (current_state->buttonDown[i]) {
+                    EnableDAC();
+
+                    current_state->dacCounter += tones[i] / SAMPLE_RATE;
+                    if (current_state->dacCounter >= 1.0f)
+                        current_state->dacCounter -= 1.0;
+
+                    uint8_t val = GetDataForDAC(*current_state);
+                    SetDACData(val);
                     break;
                 }
             }

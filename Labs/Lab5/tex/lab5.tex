@@ -1,0 +1,22 @@
+\documentclass[12pt]{article}
+\usepackage{amsmath, amssymb, graphicx, float}
+\usepackage[shortlabels]{enumitem}
+\usepackage{geometry}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+\geometry{margin=1in}
+
+\begin{document}
+
+\begin{center}
+\textbf{ELEC 327 Lab \#5} \\[6pt]
+Liam Brady \\
+Due: Saturday 2/28/26
+\end{center}
+
+The state struct for this lab contains a mode, either playing a song, in a mid-note pause (to avoid slurring), or playing tones defined by the button use. The state also contains button information, basicall how long a button has been pressed for, as well as how long the current note is being played for, and the index of the current note. \\
+\indent The state machine logic first iterates over each button, incrementing the length of the button press if that button is down. Then, if a button has been down for longer than 5ms, we shift states to the tone sttae. \\
+\indent After that, if the state is either song or pause, the note length counter is incremented, and if it reaches a set percent of the expected note length, the state is changed to a pause. If we are already in the pause, and the counter has reached the expected note length, we move onto the next note of the song. \\
+\indent Using this state information, if we are in the button tone state, we simply iterate over the buttons, and if one of them is pressed, we enable the pmw and play the tone corresponding to the button. If there are no buttons pressed, we disable the pmw. If we are in the song mode, we enable the pmw and play the frequency required by the current note.
+\end{document}

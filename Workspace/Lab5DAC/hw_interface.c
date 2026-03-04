@@ -1,5 +1,6 @@
 
-#include "hw_interface.h"
+#include <hw_interface.h>
+#include <math.h>
 
 // ====================================================================================================================
 // ====================================================================================================================
@@ -15,6 +16,18 @@ void EnableTimerA1PWM(void) {
 
 void DisableTimerA1PWM(void) {
     TIMA1->COUNTERREGS.CTRCTL &= ~(GPTIMER_CTRCTL_EN_ENABLED);
+}
+
+void SetDACData(uint8_t data) {
+    DAC0->DATA0 = data;
+}
+
+void EnableDAC(void) {
+    DAC0->CTL0 |= DAC12_CTL0_ENABLE_SET;
+}
+
+void DisableDAC(void) {
+    DAC0->CTL0 &= ~DAC12_CTL0_ENABLE_SET;
 }
 
 // ====================================================================================================================
@@ -55,7 +68,7 @@ void InitializeGPIO(void) {
 
     // ===============================================================================================================
     // 1. Initialize IOMUX for PWM!!
-    IOMUX->SECCFG.PINCM[(IOMUX_PINCM37)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM37_PF_TIMA1_CCP0; // TIMA1-CC0 on PA15
+    // IOMUX->SECCFG.PINCM[(IOMUX_PINCM37)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM37_PF_TIMA1_CCP0; // TIMA1-CC0 on PA15
     // ===============================================================================================================
 
 
@@ -143,6 +156,21 @@ void InitializeTimerA1_PWM(void) {
 
     TIMA1->COUNTERREGS.CC_01[0] = (TIMA1->COUNTERREGS.LOAD  + 1) / 2; // half of load to make this a square wave
     TIMA1->COUNTERREGS.CTRCTL |= (GPTIMER_CTRCTL_EN_ENABLED);
+}
+
+void InitializeDAC(void) {
+    DAC0->GPRCM.RSTCTL = (DAC12_RSTCTL_KEY_UNLOCK_W | DAC12_RSTCTL_RESETSTKYCLR_CLR | DAC12_RSTCTL_RESETASSERT_ASSERT);
+    DAC0->GPRCM.PWREN = (DAC12_PWREN_KEY_UNLOCK_W | DAC12_PWREN_ENABLE_ENABLE);
+    delay_cycles(POWER_STARTUP_DELAY);
+
+    DAC0->CTL0 |= DAC12_CTL0_RES__8BITS | DAC12_CTL0_DFM_BINARY;
+    DAC0->CTL1 |= DAC12_CTL1_OPS_OUT0 | DAC12_CTL1_AMPEN_ENABLE;
+    // DAC0->CTL2 |= DAC12_CTL2_FIFOEN_SET | DAC12_CTL2_FIFOTRIGSEL_STIM;
+    // DAC0->CTL3 |= DAC12_CTL3_STIMCONFIG__500KSPS | DAC12_CTL3_STIMEN_SET;
+
+    DAC0->DATA0 = 0x0;
+
+    DAC0->CTL0 |= DAC12_CTL0_ENABLE_SET;
 }
 
 /*

@@ -59,10 +59,16 @@ void SetTimerG0Delay(uint16_t delay);
  */
 void EnableTimerG0(void);
 
+
 /*
  * @brief Initializes Timer TIMGA1 as PWM. Initializes LOAD and CC0 register for 8 kHz
  */
 void InitializeTimerA1_PWM(void);
+
+/*
+ * @brief Initializes DAC.
+ */
+void InitializeDAC(void);
 
 /*
  * @brief Sets the period for Timer A1 - this is 8 MHz / desired frequency
@@ -78,6 +84,22 @@ void EnableTimerA1PWM(void);
  * @brief Disables TIMA1 PWM output
  */
 void DisableTimerA1PWM(void);
+
+/*
+ * @brief Updates DAC data
+ */
+void SetDACData(uint8_t data);
+
+/*
+ * @brief Enables DAC
+ */
+void EnableDAC(void);
+
+/*
+ * @brief Disables DAC
+ */
+void DisableDAC(void);
+
 
 
 
