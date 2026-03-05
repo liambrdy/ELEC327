@@ -70,6 +70,8 @@ void InitializeLEDInterface(void) {
 
     /* Enable module */
     SPI0->CTL1 |= SPI_CTL1_ENABLE_ENABLE;
+    
+    spi_transmission_in_progress = false;
 }
 
 bool SendSPIMessage(uint16_t *message_ptr, int message_len) {
