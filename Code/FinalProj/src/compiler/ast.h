@@ -3,7 +3,6 @@
 
 #include "common.h"
 #include "lexer.h"
-#include "semantics.h"
 
 #include <stdbool.h>
 

@@ -3,12 +3,52 @@
 
 #include "ast.h"
 
-typedef struct type_specifier_t type_specifier_t;
-typedef struct ast_node_t ast_node_t;
+typedef enum type_kind {
+    TYPE_BUILTIN,
+    TYPE_POINTER,
+    TYPE_ARRAY,
+    TYPE_FUNCTION,
+    TYPE_STRUCT,
+    TYPE_UNION,
+    TYPE_ENUM,
+} type_kind;
+
+typedef struct field_t {
+    slice_t name;
+    type_t *type;
+} field_t;
 
 typedef struct type_t {
-    type_specifier_t *spec;
-    u32 qualifiers;
+    type_kind kind;
+    i32 qualifiers;
+
+    union {
+        builtin_type_t builtin;
+
+        struct {
+            struct type_t *base;
+        } ptr;
+
+        struct {
+            struct type_t *base;
+            u32 size;
+            bool hasSize;
+        } array;
+
+        struct {
+            struct type_t *returnType;
+            struct type_t **paramTypes;
+        } function;
+
+        struct {
+            slice_t name;
+            field_t *fields;
+        } struct_union;
+
+        struct {
+            slice_t name;
+        } enum_type;
+    };
 } type_t;
 
 typedef enum symbol_kind {
@@ -23,7 +63,12 @@ typedef enum symbol_kind {
 typedef struct symbol_t {
     symbol_kind kind;
     slice_t name;
-    type_t type;
+    type_t *type;
+
+    storage_class_specifier storageSpecs;
+    
+    i64 enumConstantValue;
+    bool emptyDecl;
 } symbol_t;
 
 typedef struct scope_t {
