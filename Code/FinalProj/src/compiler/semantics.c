@@ -191,8 +191,7 @@ void SemaDecl(sema_context_t *ctx, ast_node_t *decl) {
 
                             if (!DeclareSymbol(ctx->scope, &enumConstSym)) {
                                 printf("duplicate enum constant: " SLICE_STR, SLICE_ARGS(e->name));
-                            }
-                        }
+                            }                         }
                     }
                 } break;
 
