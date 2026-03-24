@@ -4,8 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define SAMPLE_RATE 100000
-
 typedef enum buzzer_state {
     STATE_SONG,
     STATE_PAUSE,
@@ -21,6 +19,7 @@ typedef enum note_type {
 typedef struct note_t {
     float freq;
     note_type type;
+    uint8_t r, g, b;
 } note_t;
 
 // State struct
@@ -32,13 +31,12 @@ typedef struct state_t {
     int songCounter;
     int currentNote;
 
-    float dacCounter;
+    int lerpCounter;
+    uint8_t fromR, fromG, fromB;
+    uint8_t curR, curG, curB;
 } state_t;
 
 state_t GetNextState(state_t current_state, uint32_t button_input);
 void OutputFromState(state_t *current_state, state_t *prev_state);
-
-extern volatile uint32_t skip;
-extern volatile bool disabled;
 
 #endif /* state_machine_logic_include */

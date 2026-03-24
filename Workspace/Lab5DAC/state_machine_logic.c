@@ -6,12 +6,10 @@
 
 #include "hw_interface.h"
 
-#define SAMPLE_RATE 32000.0f
-
 #define TICKS_TO_MS(ticks) (ticks * 0.6)
 #define MS_TO_TICKS(ms) (ms * 1.66)
 
-#define FREQ_TO_DAC(hz) (SAMPLE_RATE / (4 * hz))
+#define FREQ_TO_DAC(hz) (4 * hz)
 
 #define G3 195.998
 #define C4 261.626f
@@ -32,9 +30,12 @@ float tones[4] = {
     FREQ_TO_DAC(G3),
 };
 
+volatile uint32_t skip = 0;
+volatile bool disabled = true;
+
 // bpm
 #define TEMPO 120
-#define TICKS_IN_QUARTER MS_TO_TICKS(60000 / TEMPO)
+#define TICKS_IN_QUARTER MS_TO_TICKS(60000.0f / TEMPO)
 
 #define STUCCATONESS 0.8
 
@@ -95,26 +96,33 @@ state_t GetNextState(state_t current_state, uint32_t button_input) {
     return new_state;
 }
 
-static uint8_t GetDataForDAC(state_t current_state) {
-    float val = sinf(2.0f * M_PI * current_state.dacCounter);
-    return (uint8_t)(val * 120 + 128);
+static void SetFrequency(float freq) {
+    if (freq == 0) {
+        disabled = true;
+        return;
+    }
+    
+    uint32_t newInc = (uint32_t)((freq / SAMPLE_RATE) * 4294967296.0f);
+    if (newInc == 0) newInc = 1;
+    
+    disabled = false;
+    phaseAcc = 0;
+    phaseInc = newInc;
 }
 
-void OutputFromState(state_t *current_state) {
+void OutputFromState(state_t *current_state, state_t *prev_state) {
+    bool stateChanged = prev_state->state != current_state->state;
+    bool noteChanged = prev_state->currentNote != current_state->currentNote;
+
     switch (current_state->state) {
         case STATE_SONG: {
-            EnableDAC();
-            current_state->dacCounter += song[current_state->currentNote].freq / SAMPLE_RATE;
-            
-            if (current_state->dacCounter >= 1.0f)
-                current_state->dacCounter -= 1.0f;
-
-            uint8_t val = GetDataForDAC(*current_state);
-            SetDACData(val);
+            if (stateChanged || noteChanged) {
+                SetFrequency(song[current_state->currentNote].freq);
+            }
         } break;
 
         case STATE_PAUSE: {
-            DisableDAC();
+            if (stateChanged) SetFrequency(0.0f);
         } break;
         
         case STATE_TONE: {
@@ -122,19 +130,14 @@ void OutputFromState(state_t *current_state) {
             for (int i = 0; i < 4; i++) buttonDownCount += (int)current_state->buttonDown[i];
 
             if (buttonDownCount == 0) {
-                DisableDAC();
+                SetFrequency(0.0f);
             }
 
             for (int i = 0; i < 4; i++) {
                 if (current_state->buttonDown[i]) {
-                    EnableDAC();
-
-                    current_state->dacCounter += tones[i] / SAMPLE_RATE;
-                    if (current_state->dacCounter >= 1.0f)
-                        current_state->dacCounter -= 1.0;
-
-                    uint8_t val = GetDataForDAC(*current_state);
-                    SetDACData(val);
+                    if (stateChanged || prev_state->buttonDown[i] != current_state->buttonDown[i]) {
+                        SetFrequency(tones[i]);
+                    }
                     break;
                 }
             }

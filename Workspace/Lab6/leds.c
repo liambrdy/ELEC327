@@ -70,6 +70,8 @@ void InitializeLEDInterface(void) {
 
     /* Enable module */
     SPI0->CTL1 |= SPI_CTL1_ENABLE_ENABLE;
+
+    NVIC_SetPriority(SPI0_INT_IRQn, 1);
     
     spi_transmission_in_progress = false;
 }
@@ -82,10 +84,15 @@ bool SendSPIMessage(uint16_t *message_ptr, int message_len) {
         spi_message = message_ptr;
         spi_message_len = message_len;
         spi_transmission_in_progress = true;
-        spi_message_idx = 1; // We'll load the first item in a moment, so the ISR should start at the second
+        spi_message_idx = 0;
+        
+        while (spi_message_idx < spi_message_len && spi_message_idx < 4) {
+            SPI0->TXDATA = spi_message[spi_message_idx++];
+        }
+
         NVIC_ClearPendingIRQ(SPI0_INT_IRQn);
         NVIC_EnableIRQ(SPI0_INT_IRQn);
-        SPI0->TXDATA = spi_message[0]; // This actually initiates transmission
+        
         return true;
     }
 }
@@ -93,11 +100,17 @@ bool SendSPIMessage(uint16_t *message_ptr, int message_len) {
 void SPI0_IRQHandler(void)
 {
     switch (SPI0->CPU_INT.IIDX) {
-        case SPI_CPU_INT_IIDX_STAT_TX_EVT: // SPI interrupt index for transmit FIFO
-            SPI0->TXDATA = spi_message[spi_message_idx];
-            spi_message_idx++;
+        case SPI_CPU_INT_IIDX_STAT_TX_EVT:
+            if (spi_message_idx < spi_message_len) {
+                int refill = 0;
+                while (spi_message_idx < spi_message_len && refill < 4) {
+                    SPI0->TXDATA = spi_message[spi_message_idx++];
+                    refill++;
+                }
+            }
+
             spi_wakeup = 1;
-            if (spi_message_idx == spi_message_len) { // We're done!
+            if (spi_message_idx >= spi_message_len) {
                spi_transmission_in_progress = false; 
                NVIC_DisableIRQ(SPI0_INT_IRQn);
             }

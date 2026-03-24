@@ -3,69 +3,84 @@
 #include "delay.h"
 #include <ti/devices/msp/msp.h>
 
-// ====================================================================================================================
-// ====================================================================================================================
-/* TODO - write these functions! */
+#include <math.h>
 
-void SetBuzzerPeriod(uint16_t period) {
+volatile uint32_t phaseAcc = 0;
+volatile uint32_t phaseInc = 0;
+uint16_t sineTable[TABLE_SIZE];
 
-    // HINT: This function should change both the PWM period
-    //   AND the PWM duty cycle to be 50% of the period!!!
-    //   It probably would be useful to #define the set of periods that correspond to the tones you  want to use!
-    //   Those sorts of constants should go in the HEADER file!
+volatile bool buzzerDisabled = true;
 
-    return;
+void InitSineTable(void) {
+    for (int i = 0; i < TABLE_SIZE; i++) {
+        float val = sinf(2.0f * M_PI * i / TABLE_SIZE);
+        sineTable[i] = (uint16_t)((val + 1.0f) * 2047.5f); // scale to 8-bit DAC
+    }
+}
+
+void SetBuzzerFrequency(float freq) {
+    if (freq == 0) {
+        buzzerDisabled = true;
+        return;
+    }
+    
+    uint32_t newInc = (uint32_t)((freq / SAMPLE_RATE) * 4294967296.0f);
+    if (newInc == 0) newInc = 1;
+    
+    buzzerDisabled = false;
+    phaseAcc = 0;
+    phaseInc = newInc;
 }
 
 void EnableBuzzer(void) {
-    TIMA1->COUNTERREGS.CTRCTL |= (GPTIMER_CTRCTL_EN_ENABLED); // Enable the buzzer
-    return;
+    for (int i = 0; i < 4; i++) {
+        DAC0->DATA0 = 2048;
+    }
+
+    DAC0->CPU_INT.IMASK |= DAC12_CPU_INT_IMASK_FIFOEMPTYIFG_SET;
+
+    NVIC_SetPriority(DAC0_INT_IRQn, 0);
+    NVIC_EnableIRQ(DAC0_INT_IRQn);
+    DAC0->CTL0 |= DAC12_CTL0_ENABLE_SET;
 }
 
 void DisableBuzzer(void) {
-    TIMA1->COUNTERREGS.CTRCTL &= ~(GPTIMER_CTRCTL_EN_ENABLED); // Disable the buzzer
-    return;
+    DAC0->CTL0 &= ~DAC12_CTL0_ENABLE_SET;
+    NVIC_ClearPendingIRQ(DAC0_INT_IRQn);
+    NVIC_DisableIRQ(DAC0_INT_IRQn);
 }
 
-
 void InitializeBuzzer(void) {
-    // ===============================================================================================================
-    // 1. Initialize GPIO IOMUX for Buzzer
-    // Check if module needs full initialization
-    if (GPIOA->GPRCM.STAT & GPIO_STAT_RESETSTKY_MASK) {
-        // Sticky bit is set → module was reset (or never initialized)
-        // Do full reset sequence and clear the sticky bit
-        GPIOA->GPRCM.RSTCTL = (GPIO_RSTCTL_KEY_UNLOCK_W |
-                                GPIO_RSTCTL_RESETSTKYCLR_CLR |
-                                GPIO_RSTCTL_RESETASSERT_ASSERT);
-        GPIOA->GPRCM.PWREN  = (GPIO_PWREN_KEY_UNLOCK_W |
-                                GPIO_PWREN_ENABLE_ENABLE);
-        delay_cycles(POWER_STARTUP_DELAY);
-    } 
+    DAC0->GPRCM.RSTCTL = (DAC12_RSTCTL_KEY_UNLOCK_W | DAC12_RSTCTL_RESETSTKYCLR_CLR | DAC12_RSTCTL_RESETASSERT_ASSERT);
+    DAC0->GPRCM.PWREN = (DAC12_PWREN_KEY_UNLOCK_W | DAC12_PWREN_ENABLE_ENABLE);
+    delay_cycles(POWER_STARTUP_DELAY);
 
-    // IOMUX for PWM Mode on Buzzer Pin
-    IOMUX->SECCFG.PINCM[(IOMUX_PINCM37)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM37_PF_TIMA1_CCP0; // TIMA1-CC0 on PA15
+    SYSCTL->SOCLOCK.GENCLKEN |= SYSCTL_GENCLKEN_MFPCLKEN_ENABLE;
 
-    // ===============================================================================================================
-    // 2. Initialize Timer Module for PWM
-    TIMA1->GPRCM.RSTCTL = (GPTIMER_RSTCTL_KEY_UNLOCK_W | GPTIMER_RSTCTL_RESETSTKYCLR_CLR | GPTIMER_RSTCTL_RESETASSERT_ASSERT);
-    TIMA1->GPRCM.PWREN = (GPTIMER_PWREN_KEY_UNLOCK_W | GPTIMER_PWREN_ENABLE_ENABLE);
-    delay_cycles(POWER_STARTUP_DELAY); // delay to enable module to turn on and reset
+    DAC0->CTL0 |= DAC12_CTL0_RES__12BITS | DAC12_CTL0_DFM_BINARY;
+    DAC0->CTL1 |= DAC12_CTL1_OPS_OUT0 | DAC12_CTL1_AMPEN_ENABLE | DAC12_CTL1_REFSN_VSSA | DAC12_CTL1_REFSP_VDDA;
+    DAC0->CTL2 |= DAC12_CTL2_FIFOEN_SET | DAC12_CTL2_FIFOTRIGSEL_STIM;
+    DAC0->CTL3 |= DAC12_CTL3_STIMCONFIG__100KSPS | DAC12_CTL3_STIMEN_SET;
 
-    // Configure clocking for Timer Module
-    TIMA1->CLKSEL = GPTIMER_CLKSEL_BUSCLK_SEL_ENABLE; // BUSCLK will be SYSOSC / 32 MHz
-    TIMA1->CLKDIV = GPTIMER_CLKDIV_RATIO_DIV_BY_4; // Divide by 4 to make PWM clock frequency 8 MHz
+    InitSineTable();
+}
 
-    TIMA1->COUNTERREGS.CCACT_01[0] = GPTIMER_CCACT_01_ZACT_CCP_HIGH | GPTIMER_CCACT_01_CUACT_CCP_LOW;
-    TIMA1->COUNTERREGS.CTRCTL = GPTIMER_CTRCTL_REPEAT_REPEAT_1 | GPTIMER_CTRCTL_CM_UP |
-            GPTIMER_CTRCTL_CVAE_ZEROVAL | GPTIMER_CTRCTL_EN_DISABLED;
-    TIMA1->COMMONREGS.CCPD = GPTIMER_CCPD_C0CCP0_OUTPUT | GPTIMER_CCPD_C0CCP1_OUTPUT;
-    TIMA1->COMMONREGS.CCLKCTL = (GPTIMER_CCLKCTL_CLKEN_ENABLED);
+void DAC0_IRQHandler(void) {
+    switch (DAC0->CPU_INT.IIDX) {
+        case DAC12_CPU_INT_IIDX_STAT_FIFOEMPTYIFG: {
+            for (int i = 0; i < 4; i++) {
+                if (!buzzerDisabled) {
+                    uint32_t idx = phaseAcc >> PHASE_SHIFT;
+                    int32_t sample = sineTable[idx];
+                    DAC0->DATA0 = sample;
+                    // DAC0->DATA0 = (idx < (TABLE_SIZE / 2)) ? 4095 : 0;
+                    phaseAcc += phaseInc;
+                } else {
+                    DAC0->DATA0 = 2048;
+                }
+            }
+        } break;
 
-    TIMA1->COUNTERREGS.LOAD = 3999; // Period is LOAD+1 - this is 8000000/4000 = 2kHz
-    // HEADS UP: This sets the frequency of the buzzer!
-
-    TIMA1->COUNTERREGS.CC_01[0] = (TIMA1->COUNTERREGS.LOAD  + 1) / 2; // half of load to make this a square wave
-    TIMA1->COUNTERREGS.CTRCTL |= (GPTIMER_CTRCTL_EN_ENABLED);
-
+        default: break;
+    }
 }

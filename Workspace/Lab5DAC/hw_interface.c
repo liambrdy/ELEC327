@@ -2,6 +2,11 @@
 #include <hw_interface.h>
 #include <math.h>
 
+#include "state_machine_logic.h"
+
+volatile bool fromTimer = true;
+uint16_t sineTable[TABLE_SIZE];
+
 // ====================================================================================================================
 // ====================================================================================================================
 
@@ -18,16 +23,21 @@ void DisableTimerA1PWM(void) {
     TIMA1->COUNTERREGS.CTRCTL &= ~(GPTIMER_CTRCTL_EN_ENABLED);
 }
 
-void SetDACData(uint8_t data) {
-    DAC0->DATA0 = data;
-}
-
 void EnableDAC(void) {
+    for (int i = 0; i < 4; i++) {
+        DAC0->DATA0 = 2048;
+    }
+
+    DAC0->CPU_INT.IMASK |= DAC12_CPU_INT_IMASK_FIFOEMPTYIFG_SET;
+
+    NVIC_EnableIRQ(DAC0_INT_IRQn);
     DAC0->CTL0 |= DAC12_CTL0_ENABLE_SET;
 }
 
 void DisableDAC(void) {
     DAC0->CTL0 &= ~DAC12_CTL0_ENABLE_SET;
+    NVIC_ClearPendingIRQ(DAC0_INT_IRQn);
+    NVIC_DisableIRQ(DAC0_INT_IRQn);
 }
 
 // ====================================================================================================================
@@ -68,7 +78,7 @@ void InitializeGPIO(void) {
 
     // ===============================================================================================================
     // 1. Initialize IOMUX for PWM!!
-    // IOMUX->SECCFG.PINCM[(IOMUX_PINCM37)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM37_PF_TIMA1_CCP0; // TIMA1-CC0 on PA15
+    // IOMUX->SECCFG.PINCM[(IOMUX_PINCM37)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM37_PF_OP; // TIMA1-CC0 on PA15
     // ===============================================================================================================
 
 
@@ -129,7 +139,7 @@ void TIMG0_IRQHandler(void)
     // This wakes up the processor!
     switch (TIMG0->CPU_INT.IIDX) {
         case GPTIMER_CPU_INT_IIDX_STAT_Z: // Counted down to zero event.
-            // If we wanted to execute code in the ISR, it would go here.
+            fromTimer = true;
             break;
         default:
             break;
@@ -163,16 +173,44 @@ void InitializeDAC(void) {
     DAC0->GPRCM.PWREN = (DAC12_PWREN_KEY_UNLOCK_W | DAC12_PWREN_ENABLE_ENABLE);
     delay_cycles(POWER_STARTUP_DELAY);
 
-    DAC0->CTL0 |= DAC12_CTL0_RES__8BITS | DAC12_CTL0_DFM_BINARY;
-    DAC0->CTL1 |= DAC12_CTL1_OPS_OUT0 | DAC12_CTL1_AMPEN_ENABLE;
-    // DAC0->CTL2 |= DAC12_CTL2_FIFOEN_SET | DAC12_CTL2_FIFOTRIGSEL_STIM;
-    // DAC0->CTL3 |= DAC12_CTL3_STIMCONFIG__500KSPS | DAC12_CTL3_STIMEN_SET;
+    SYSCTL->SOCLOCK.GENCLKEN |= SYSCTL_GENCLKEN_MFPCLKEN_ENABLE;
 
-    DAC0->DATA0 = 0x0;
-
-    DAC0->CTL0 |= DAC12_CTL0_ENABLE_SET;
+    DAC0->CTL0 |= DAC12_CTL0_RES__12BITS | DAC12_CTL0_DFM_BINARY;
+    DAC0->CTL1 |= DAC12_CTL1_OPS_OUT0 | DAC12_CTL1_AMPEN_ENABLE | DAC12_CTL1_REFSN_VSSA | DAC12_CTL1_REFSP_VDDA;
+    DAC0->CTL2 |= DAC12_CTL2_FIFOEN_SET | DAC12_CTL2_FIFOTRIGSEL_STIM;
+    DAC0->CTL3 |= DAC12_CTL3_STIMCONFIG__100KSPS | DAC12_CTL3_STIMEN_SET;
 }
 
+volatile uint32_t phaseAcc = 0;
+volatile uint32_t phaseInc = 0;
+
+void DAC0_IRQHandler(void) {
+    switch (DAC0->CPU_INT.IIDX) {
+        case DAC12_CPU_INT_IIDX_STAT_FIFOEMPTYIFG: {
+            for (int i = 0; i < 4; i++) {
+                if (!disabled) {
+                    uint32_t idx = phaseAcc >> PHASE_SHIFT;
+                    int32_t sample = sineTable[idx];
+                    DAC0->DATA0 = sample;
+                    // DAC0->DATA0 = (idx < (TABLE_SIZE / 2)) ? 4095 : 0;
+                    phaseAcc += phaseInc;
+                } else {
+                    DAC0->DATA0 = 2048;
+                }
+            }
+        } break;
+
+        default: break;
+    }
+}
+
+void InitSineTable(void) {
+    for (int i = 0; i < TABLE_SIZE; i++)
+    {
+        float val = sinf(2.0f * M_PI * i / TABLE_SIZE);
+        sineTable[i] = (uint8_t)((val + 1.0f) * 2047.5f); // scale to 8-bit DAC
+    }
+}
 /*
  *
  * The delay function is a reproduction of standard TI code

@@ -5,6 +5,18 @@
 
 #define POWER_STARTUP_DELAY (16)
 
+#define TABLE_SIZE 256
+#define TABLE_SIZE_BITS 8
+#define PHASE_SHIFT (32 - TABLE_SIZE_BITS)
+
+extern uint16_t sineTable[TABLE_SIZE];
+extern volatile uint32_t phaseAcc;
+extern volatile uint32_t phaseInc;
+
+extern volatile bool fromTimer;
+
+void InitSineTable(void);
+
 /**
  * @brief   Consumes the number of CPU cycles specified.
  *
@@ -99,7 +111,6 @@ void EnableDAC(void);
  * @brief Disables DAC
  */
 void DisableDAC(void);
-
 
 
 
