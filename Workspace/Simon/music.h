@@ -2,7 +2,11 @@
 #ifndef music_include
 #define music_include
 
-#define G5  783.99
+
+#define C5 523.252f
+#define D5 587.32f
+#define E5 659.256f
+#define G5 783.99f
 
 #define MCLK_FREQUENCY 8000000.0  // Use .0 to ensure floating point math
 
@@ -11,6 +15,9 @@
 // We add 0.5 to ensure rounding rather than truncation in the divide.
 #define CALC_LOAD(freq) ((uint16_t)((MCLK_FREQUENCY / (freq)) + 0.5) - 1)
 
+#define C5_LOAD    CALC_LOAD(C5)
+#define D5_LOAD    CALC_LOAD(D5)
+#define E5_LOAD    CALC_LOAD(E5)
 #define G5_LOAD    CALC_LOAD(G5)
 
 #endif /* music_include */

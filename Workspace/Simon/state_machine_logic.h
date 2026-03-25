@@ -14,6 +14,9 @@
 
 #define SIXTEENTH_NOTE 200
 
+#define SIMON_SAYS_PAUSE MAX_COUNTER / 8
+#define SIMON_SAYS_NOTE_DURATION MAX_COUNTER / 4
+
 /* For our state machine, we need to think about the MODE, the SOUND, and the BUTTONS */
 
 /* Let's start by defining a enum and a struct that will be useful for tracking the state of  
@@ -21,7 +24,8 @@
 typedef enum {
     BUTTON_IDLE = 0,
     BUTTON_BOUNCING,
-    BUTTON_PRESS
+    BUTTON_PRESS,
+    BUTTON_RELEASE,
 } button_state_t;
 
 typedef struct {
@@ -66,10 +70,13 @@ typedef struct {
 
 /* And last, let's define the possible modes */
 typedef enum {
-    MODE_SONG = 0,
-    MODE_BUTTONS
+    MODE_STARTUP = 0,
+    MODE_SIMON_SAYS,
+    MODE_SIMON_SAYS_PAUSE,
+    MODE_SIMON_RESPOND,
+    MODE_GAME_OVER_WIN,
+    MODE_GAME_OVER_LOSE,
 } mode_t;
-
 
 /* Finally, we can define our state machine state*/
 typedef struct {
@@ -78,9 +85,15 @@ typedef struct {
     const leds_message_t *leds;
     mode_t mode;
     song_state_t song_state; 
+
+    uint16_t gameSeed;
+    uint16_t sequenceCounter;
+    uint16_t sequenceLength;
+
+    uint16_t counter;
+
+    uint8_t currentCorrect;
 } state_t;
-
-
 
 state_t GetNextState(state_t current_state, uint32_t input);
 void SetBuzzerState(buzzer_state_t);

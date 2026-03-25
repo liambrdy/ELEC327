@@ -13,6 +13,7 @@
 #include "leds.h"
 #include "colors.h"
 #include "state_machine_logic.h"
+#include "random.h"
 
 int message_len = sizeof(leds_message_t)/sizeof(uint16_t);
 
@@ -34,7 +35,9 @@ int main(void)
     state.buzzer.period = 3999;
     state.buzzer.sound_on = false;
     state.leds = &leds_off;
-    state.mode = MODE_BUTTONS;
+    state.mode = MODE_STARTUP;
+
+    state.gameSeed = GenerateSeed();
 
     uint32_t input;
 
