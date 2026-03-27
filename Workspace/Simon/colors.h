@@ -7,4 +7,6 @@ extern const leds_message_t leds_off;
 
 extern const leds_message_t leds_on;
 
+extern const leds_message_t single_leds[];
+
 #endif // colors_include

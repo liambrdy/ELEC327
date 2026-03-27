@@ -8,6 +8,8 @@
 #include "arena.h"
 #include "file.h"
 #include "semantics.h"
+#include "stringbuf.h"
+#include "codegen.h"
 
 void usage(const char *exe) {
     printf("Usage: %s in_file [-o out_file] [-Iinc_dir]\n", exe);
@@ -100,10 +102,13 @@ int main(int argc, char **argv) {
 
     PrintAst(ast, 0);
 
-    AnnotateAst(ast);
+    // AnnotateAst(ast);
 
     printf("Used %ld of %ld bytes after ast\n", globalArena->pos, globalArena->capacity);
     printf("Used %d bytes by darray\n", bytesAllocated);
+
+    string_buf sb = CodeGenx86_64(ast);
+    WriteFile("a.out", sb, StringBufGetLen(sb));
 
     free(globalArenaMem);
 

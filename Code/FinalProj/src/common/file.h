@@ -9,7 +9,8 @@ typedef struct loaded_file_t {
     bool success;
 } loaded_file_t;
 
-loaded_file_t LoadFile(u8 *path);
+loaded_file_t LoadFile(const u8 *path);
+bool WriteFile(const u8 *path, u8 *buf, u32 bufLen);
 
 u8 *GetFileDir(u8 *filepath);
 

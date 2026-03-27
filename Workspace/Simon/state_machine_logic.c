@@ -88,12 +88,14 @@ state_t GetNextState(state_t current_state, uint32_t input)
                 uint16_t pick = rand();
                 new_state.buzzer.sound_on = true;
                 new_state.buzzer.period = buzzer_notes[pick];
+                new_state.leds = &single_leds[pick];
             }
 
             if (new_state.counter >= SIMON_SAYS_NOTE_DURATION) {
                 new_state.sequenceCounter++;
                 new_state.counter = 0;
                 new_state.buzzer.sound_on = false;
+                new_state.leds = &leds_off;
                 new_state.mode = MODE_SIMON_SAYS_PAUSE;
 
                 if (new_state.sequenceCounter >= new_state.sequenceLength) {
@@ -122,31 +124,48 @@ state_t GetNextState(state_t current_state, uint32_t input)
                 new_state.buzzer.sound_on = false;
             }
 
+            if (new_state.counter >= TIME_PER_RESPONSE) {
+                new_state.counter = 0;
+                new_state.mode = MODE_GAME_OVER_LOSE;
+            }
+
             if (button_pressed > 0) {
                 for (int i = 0; i < 4; i++) {
-                    bool down = new_state.buttons[i].state == BUTTON_PRESS;
-                    if (down && new_state.currentCorrect == i) {
+                    if (new_state.buttons[i].state != BUTTON_PRESS) continue;
+                    
+                    if (new_state.currentCorrect == i) {
                         new_state.buzzer.period = buzzer_notes[i];
                         new_state.buzzer.sound_on = true;
+                        new_state.leds = &single_leds[i];
                     } else {
+                        new_state.counter = 0;
                         new_state.mode = MODE_GAME_OVER_LOSE;
                     }
                 }
             } else if (button_released > 0) {
+                new_state.leds = &leds_off;
                 new_state.buzzer.sound_on = false;
                 new_state.counter = 0;
                 new_state.sequenceCounter++;
 
                 if (new_state.sequenceCounter >= new_state.sequenceLength) {
+                    new_state.sequenceCounter = 0;
                     new_state.sequenceLength++;
                     new_state.mode = MODE_SIMON_SAYS_PAUSE;
+
+                    if (new_state.sequenceLength > WIN_LENGTH) {
+                        new_state.counter = 0;
+                        new_state.mode = MODE_GAME_OVER_WIN;
+                    }
                 }
             } else {
                 new_state.counter++;
             }
         } break;
         case MODE_GAME_OVER_WIN: {
-
+            int ledIndex = (new_state.counter * 4) / (FLASH_COUNTER + 1);
+            current_state.leds = &single_leds[ledIndex];
+            new_state.counter++;
         } break;
         case MODE_GAME_OVER_LOSE: {
 
@@ -155,7 +174,6 @@ state_t GetNextState(state_t current_state, uint32_t input)
     }
 
     // Update buzzer state
-    new_state.leds = &leds_off;
 
     // for (int i = 0; i < 4; i++) {
     //     if (new_state.buttons[i].state == BUTTON_PRESS) {
@@ -171,12 +189,14 @@ state_t GetNextState(state_t current_state, uint32_t input)
 }
 
 void SetBuzzerState(buzzer_state_t buzzer) {
-    if (buzzer.sound_on) {
-        EnableBuzzer();
-    }
-    else {
-        DisableBuzzer();
-    }
+    // if (buzzer.sound_on) {
+    //     EnableBuzzer();
+    // }
+    // else {
+    //     DisableBuzzer();
+    // }
 
-    SetBuzzerPeriod(buzzer.period);
+    // SetBuzzerPeriod(buzzer.period);
+
+    DisableBuzzer();
 }

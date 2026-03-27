@@ -15,7 +15,10 @@
 #define SIXTEENTH_NOTE 200
 
 #define SIMON_SAYS_PAUSE MAX_COUNTER / 8
-#define SIMON_SAYS_NOTE_DURATION MAX_COUNTER / 4
+#define SIMON_SAYS_NOTE_DURATION SIXTEENTH_NOTE * 4
+
+#define TIME_PER_RESPONSE SIMON_SAYS_NOTE_DURATION * 8
+#define WIN_LENGTH 5
 
 /* For our state machine, we need to think about the MODE, the SOUND, and the BUTTONS */
 

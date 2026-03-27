@@ -6,7 +6,7 @@
 
 #include "arena.h"
 
-loaded_file_t LoadFile(u8 *path) {
+loaded_file_t LoadFile(const u8 *path) {
     loaded_file_t t = {0};
     t.success = false;
 
@@ -29,6 +29,24 @@ loaded_file_t LoadFile(u8 *path) {
     fclose(f);
 
     return t;
+}
+
+bool WriteFile(const u8 *path, u8 *buf, u32 bufLen) {
+    FILE *f = fopen(path, "w");
+    if (!f) {
+        printf("Failed to open file for writing: %s\n", path);
+        return false;
+    }
+
+    size_t bytesWritten = fwrite(buf, 1, bufLen, f);
+    if (bytesWritten != bufLen) {
+        printf("Wrote %d bytes, expected to write %d bytes\n", bytesWritten, bufLen);
+        return false;
+    }
+
+    fclose(f);
+
+    return true;
 }
 
 u8 *GetFileDir(u8 *filepath) {

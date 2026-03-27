@@ -28,3 +28,46 @@ const leds_message_t leds_on = {
     },
     .end = {0xFFFF, 0xFFFF},
 };
+
+const leds_message_t single_leds[] = {
+    [0] = { // BLUE
+        .start = {0x0000, 0x0000},
+        .led = {
+            {.brightness = 5, ._header = 7, .red = 0x10, .green = 0x10, .blue = 0xF0},  // Blue
+            {.brightness = 5, ._header = 7},
+            {.brightness = 5, ._header = 7},
+            {.brightness = 5, ._header = 7},
+        },
+        .end = {0xFFFF, 0xFFFF},
+    },
+    [1] = { // RED
+        .start = {0x0000, 0x0000},
+        .led = {
+            {.brightness = 5, ._header = 7},
+            {.brightness = 5, ._header = 7, .red = 0xF0, .green = 0x10, .blue = 0x10}, // Red
+            {.brightness = 5, ._header = 7},
+            {.brightness = 5, ._header = 7},
+        },
+        .end = {0xFFFF, 0xFFFF},
+    },
+    [2] = { // GREEN
+        .start = {0x0000, 0x0000},
+        .led = {
+            {.brightness = 5, ._header = 7},
+            {.brightness = 5, ._header = 7},
+            {.brightness = 5, ._header = 7, .red = 0x10, .green = 0xF0, .blue = 0x10},  // Green
+            {.brightness = 5, ._header = 7},
+        },
+        .end = {0xFFFF, 0xFFFF},
+    },
+    [3] = { // YELLOW
+        .start = {0x0000, 0x0000},
+        .led = {
+            {.brightness = 5, ._header = 7},
+            {.brightness = 5, ._header = 7},
+            {.brightness = 5, ._header = 7},
+            {.brightness = 5, ._header = 7, .red = 0x80, .green = 0x80, .blue = 0x10},  // Yellow
+        },
+        .end = {0xFFFF, 0xFFFF},
+    },
+};

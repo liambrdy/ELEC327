@@ -19,7 +19,6 @@ int message_len = sizeof(leds_message_t)/sizeof(uint16_t);
 
 int main(void)
 {
-    
     InitializeButtonGPIO();
     InitializeBuzzer();
     InitializeLEDInterface();
