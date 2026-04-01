@@ -9,7 +9,7 @@
 #include "file.h"
 #include "semantics.h"
 #include "stringbuf.h"
-#include "codegen.h"
+#include "codegen/rom.h"
 
 void usage(const char *exe) {
     printf("Usage: %s in_file [-o out_file] [-Iinc_dir]\n", exe);
@@ -107,8 +107,11 @@ int main(int argc, char **argv) {
     printf("Used %ld of %ld bytes after ast\n", globalArena->pos, globalArena->capacity);
     printf("Used %d bytes by darray\n", bytesAllocated);
 
-    string_buf sb = CodeGenx86_64(ast);
-    WriteFile("a.out", sb, StringBufGetLen(sb));
+    string_buf sb = CodegenRom(ast);
+    if (!args.out_file) {
+        args.out_file = "a.out";
+    }
+    WriteFile(args.out_file, sb, StringBufGetLen(sb));
 
     free(globalArenaMem);
 
