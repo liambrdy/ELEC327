@@ -20,6 +20,15 @@
 #define TIME_PER_RESPONSE SIMON_SAYS_NOTE_DURATION * 8
 #define WIN_LENGTH 5
 
+#define TICKS_TO_MS(ticks) (ticks * 0.6)
+#define MS_TO_TICKS(ms) (ms * 1.66)
+
+// bpm
+#define TEMPO 120
+#define TICKS_IN_QUARTER MS_TO_TICKS(60000.0f / TEMPO)
+
+#define STUCCATONESS 0.5
+
 /* For our state machine, we need to think about the MODE, the SOUND, and the BUTTONS */
 
 /* Let's start by defining a enum and a struct that will be useful for tracking the state of  
@@ -43,12 +52,20 @@ typedef struct {
     bool     sound_on;
 } buzzer_state_t;
 
+typedef enum note_type {
+    NOTE_WHOLE,
+    NOTE_HALF,
+    NOTE_QUARTER,
+    NOTE_EIGHTH,
+    NOTE_SIXTEENTH,
+} note_type;
+
 // More complex info for playing songs.
 // We'll define a song as a linked list of notes and durations.
 // Rests would be defined with sound_on = false.
 typedef struct music_note {
     buzzer_state_t     note;
-    uint16_t           duration;
+    note_type          duration;
 } music_note_t;
 
 typedef struct animation_note {
@@ -68,12 +85,12 @@ typedef struct {
     int          index;
     internote_t  note_state;  // allows us to keep track of inter-note breaks
     uint32_t     music_counter; // this will actually be used with the tick counter to achieve durations
-    uint32_t     note_counter; // This will be used for quarter notes, whole notes etc
 } song_state_t;
 
 /* And last, let's define the possible modes */
 typedef enum {
     MODE_STARTUP = 0,
+    MODE_PAUSE_BEFORE,
     MODE_SIMON_SAYS,
     MODE_SIMON_SAYS_PAUSE,
     MODE_SIMON_RESPOND,
@@ -94,6 +111,8 @@ typedef struct {
     uint16_t sequenceLength;
 
     uint16_t counter;
+    bool readyToRestart;
+    bool seededThisRound;
 
     uint8_t currentCorrect;
 } state_t;
@@ -101,7 +120,13 @@ typedef struct {
 state_t GetNextState(state_t current_state, uint32_t input);
 void SetBuzzerState(buzzer_state_t);
 
-extern const animation_note_t animation[];
-extern const int animation_length;
+extern const animation_note_t winAnim[];
+extern const int winAnimLen;
+
+extern const animation_note_t loseAnim[];
+extern const int loseAnimLen;
+
+extern const animation_note_t startupAnim[];
+extern const int startupAnimLen;
 
 #endif /* state_machine_logic_include */

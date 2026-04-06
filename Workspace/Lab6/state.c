@@ -49,12 +49,6 @@ uint16_t toneLEDs[] = {
     START_FRAME, LED_OFF, LED_OFF, LED_OFF, LED_FRAME(0x0, 0x0, ON, BRIGHT), END_FRAME,
 };
 
-// bpm
-#define TEMPO 120
-#define TICKS_IN_QUARTER MS_TO_TICKS(60000.0f / TEMPO)
-
-#define STUCCATONESS 0.8
-
 #define E_COL 0x0F, 0x00, 0x00   // red
 #define D_COL 0x00, 0x0F, 0x00   // green  
 #define C_COL 0x00, 0x00, 0x0F   // blue
