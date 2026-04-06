@@ -26,7 +26,7 @@ int main(void)
 
     DisableBuzzer();
 
-    state_t state; // initialize state machine
+    state_t state = {0}; // initialize state machine
     for (int i = 0; i < 4; i++) {
         state.buttons[i].state = BUTTON_IDLE;
         state.buttons[i].depressed_counter = 0;
@@ -35,8 +35,6 @@ int main(void)
     state.buzzer.sound_on = false;
     state.leds = &leds_off;
     state.mode = MODE_STARTUP;
-
-    state.gameSeed = GenerateSeed();
 
     uint32_t input;
 

@@ -7,6 +7,12 @@
 #define D5 587.32f
 #define E5 659.256f
 #define G5 783.99f
+#define A5 880.0f
+#define F5   698.456f
+#define FS5  739.989f
+#define GS5  830.609f
+#define B4 493.883f
+
 
 #define MCLK_FREQUENCY 8000000.0  // Use .0 to ensure floating point math
 
@@ -19,6 +25,11 @@
 #define D5_LOAD    CALC_LOAD(D5)
 #define E5_LOAD    CALC_LOAD(E5)
 #define G5_LOAD    CALC_LOAD(G5)
+#define A5_LOAD    CALC_LOAD(A5)
+#define F5_LOAD   CALC_LOAD(F5)
+#define FS5_LOAD  CALC_LOAD(FS5)
+#define GS5_LOAD  CALC_LOAD(GS5)
+#define B4_LOAD CALC_LOAD(B4)
 
 #endif /* music_include */
 
