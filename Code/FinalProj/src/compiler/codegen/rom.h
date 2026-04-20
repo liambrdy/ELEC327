@@ -50,6 +50,10 @@ typedef enum opcode {
     OPCODE_SUB,
     OPCODE_MUL,
     OPCODE_DIV,
+    OPCODE_PUSH,
+    OPCODE_PUSH_INDIRECT,
+    OPCODE_POP,
+    OPCODE_CALL,
 } opcode;
 
 typedef enum rom_symbol_entry_kind {
@@ -59,8 +63,7 @@ typedef enum rom_symbol_entry_kind {
 } rom_symbol_entry_kind;
 
 typedef struct rom_symbol_entry_t {
-    u16 name_len;
-    u8 *name;
+    slice_t name;
     u32 address;
     u8 kind;
 } rom_symbol_entry_t;

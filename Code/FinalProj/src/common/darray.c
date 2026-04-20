@@ -27,6 +27,7 @@ void _DArrayDestroy(void *array) {
 }
 
 u64 _DArrayFieldGet(void *array, u64 field) {
+    if (!array) return 0;
     u64 *header = (u64 *)array - DARRAY_FIELD_LENGTH;
     return header[field];
 }

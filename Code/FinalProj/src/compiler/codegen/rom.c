@@ -5,6 +5,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 static rom_scope_t *PushScope(rom_scope_t *parent) {
     rom_scope_t *s = (rom_scope_t *)malloc(sizeof(rom_scope_t));
@@ -65,6 +66,21 @@ void DeclareSymbol(rom_context_t *ctx, rom_symbol_entry_t *sym) {
     HashInsert(ctx->symbolTable, &sym->name, sym);
 }
 
+void WriteByte(rom_context_t *ctx, u8 c) {
+    DArrayPush(ctx->code, c);
+    ctx->currentAddress++;
+}
+
+void WriteBytes(rom_context_t *ctx, u32 count, u8 *data) {
+    for (u32 i = 0; i < count; i++) {
+        WriteByte(ctx, data[i]);
+    }
+}
+
+void WriteU32(rom_context_t *ctx, u32 num) {
+    WriteBytes(ctx, 4, &num);
+}
+
 void RomGenFromAst(rom_context_t *ctx, ast_node_t *ast) {
     switch (ast->type) {
         case AST_PROGRAM: {
@@ -98,12 +114,11 @@ void RomGenFromAst(rom_context_t *ctx, ast_node_t *ast) {
         case AST_FUNC_DEF: {
             slice_t name = GetNameFromDeclarator(ast->func_def.declarator);
             rom_symbol_entry_t fun = {
-                .name_len = name.len,
+                .name = name,
                 .address = ctx->currentAddress,
                 .kind = SYMBOL_ENTRY_FUNCTION,
             };
 
-            strncpy(fun.name, name.str, name.len);
             DeclareSymbol(ctx, &fun);
             
             ctx->scope = PushScope(ctx->scope);
@@ -128,11 +143,37 @@ void RomGenFromAst(rom_context_t *ctx, ast_node_t *ast) {
         } break;
 
         case AST_STATEMENT: {
-
+            
         } break;
 
         case AST_FUNC_CALL: {
+            ast_node_t *fun = ast->func_call.fun;
+            if (fun->type != AST_IDENTIFIER) {
+                printf("Function call must be with identifier!");
+                return;
+            }
 
+            slice_t name = fun->identifier.name;
+            rom_symbol_entry_t *sym = NULL;
+            if (!HashContainsRet(ctx->symbolTable, &name, (void **)&sym)) {
+                printf("Function " SLICE_STR " does not exist!\n", SLICE_ARGS(name));
+                return;
+            }
+
+            if (sym->kind != SYMBOL_ENTRY_FUNCTION) {
+                printf("Symbol " SLICE_STR " is not function\n", SLICE_ARGS(name));
+                return;
+            }
+
+            u32 argCount = DArrayLength(ast->func_call.params);
+            for (u32 i = 0; i < argCount; i++) {
+                ast_node_t *arg = ast->func_call.params[i];
+                RomGenFromAst(ctx, arg);
+                // TODO: Use generated value for arg call:
+            }
+
+            WriteByte(ctx, OPCODE_CALL);
+            WriteU32(ctx, sym->address);
         } break;
 
         case AST_TERNARY_EXPR: {
@@ -140,7 +181,7 @@ void RomGenFromAst(rom_context_t *ctx, ast_node_t *ast) {
         } break;
 
         case AST_BINARY_EXPR: {
-
+            
         } break;
 
         case AST_UNARY_EXPR: {
@@ -228,4 +269,8 @@ string_buf CodegenRom(ast_node_t *ast) {
     entry.file_size = 0;
     entry.mem_address = 0;
     entry.mem_size = 0;
+
+    string_buf sb = CreateStringBuf();
+
+    return sb;
 }

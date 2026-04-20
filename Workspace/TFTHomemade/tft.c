@@ -17,6 +17,9 @@ static volatile uint32_t spi_len;
 static volatile uint32_t spi_idx;
 static volatile bool spi_busy;
 
+#define DC_PIN  (1UL << 1)   // PB1 = D/C
+#define RST_PIN (1UL << 16)  // PB16 = RST
+
 void InitializeTFT(void) {
     if (GPIOB->GPRCM.STAT & GPIO_STAT_RESETSTKY_MASK) {
         GPIOB->GPRCM.RSTCTL = (GPIO_RSTCTL_KEY_UNLOCK_W |
@@ -29,32 +32,40 @@ void InitializeTFT(void) {
 
     // Initialize SPI0 connections!!
     IOMUX->SECCFG.PINCM[(IOMUX_PINCM26)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM26_PF_SPI1_SCLK;
-    IOMUX->SECCFG.PINCM[(IOMUX_PINCM13)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM13_PF_SPI1_CS3_CD_POCI3;
     IOMUX->SECCFG.PINCM[(IOMUX_PINCM23)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM23_PF_SPI1_CS0;
     IOMUX->SECCFG.PINCM[(IOMUX_PINCM24)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM24_PF_SPI1_POCI;
     IOMUX->SECCFG.PINCM[(IOMUX_PINCM25)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM25_PF_SPI1_PICO;
+
+    IOMUX->SECCFG.PINCM[(IOMUX_PINCM13)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM13_PF_GPIOB_DIO01;
     IOMUX->SECCFG.PINCM[(IOMUX_PINCM33)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM33_PF_GPIOB_DIO16;
+    
+    GPIOB->DOESET31_0 = DC_PIN | RST_PIN;
+    GPIOB->DOUTSET31_0 = DC_PIN | RST_PIN;
 
     SPI1->GPRCM.RSTCTL = (SPI_RSTCTL_KEY_UNLOCK_W | SPI_RSTCTL_RESETSTKYCLR_CLR | SPI_RSTCTL_RESETASSERT_ASSERT);
     SPI1->GPRCM.PWREN = (SPI_PWREN_KEY_UNLOCK_W | SPI_PWREN_ENABLE_ENABLE);
     delay_cycles(POWER_STARTUP_DELAY); // delay to enable SPI to turn on and reset
+
 
     // Configure clocking for SPI0
     SPI1->CLKSEL = (uint32_t) SPI_CLKSEL_SYSCLK_SEL_ENABLE; // use the SYSOSC
     SPI1->CLKDIV = (uint32_t) SPI_CLKDIV_RATIO_DIV_BY_1; // actually 0x0, which is going to be default, but here for completeness
 
     // Configure the module
-    SPI1->CTL0 = SPI_CTL0_SPO_LOW | SPI_CTL0_SPH_FIRST | // Clock edges and phases for data
-            SPI_CTL0_PACKEN_DISABLED | 
-            SPI_CTL0_CSSEL_CSSEL_0 |
-            SPI_CTL0_CSCLR_ENABLE |
-            SPI_CTL0_FRF_MOTOROLA_4WIRE |  // Don't use a chip select pin to bound frames
-            SPI_CTL0_DSS_DSS_8;
+    SPI1->CTL0 = SPI_CTL0_SPO_LOW      |
+                 SPI_CTL0_SPH_FIRST     |
+                 SPI_CTL0_PACKEN_DISABLED |
+                 SPI_CTL0_CSSEL_CSSEL_0 |
+                 SPI_CTL0_CSCLR_ENABLE  |
+                 SPI_CTL0_FRF_MOTOROLA_4WIRE |
+                 SPI_CTL0_DSS_DSS_8;
 
-    SPI1->CTL1 = SPI_CTL1_CP_ENABLE | // Microcontroller is CONTROLLER
-            SPI_CTL1_PREN_DISABLE | SPI_CTL1_PTEN_DISABLE | SPI_CTL1_PES_DISABLE | // Disable parity on RX and TX
-            SPI_CTL1_MSB_ENABLE | // Bit order is MSB first
-            SPI_CTL1_CDENABLE_ENABLE;
+    SPI1->CTL1 = SPI_CTL1_CP_ENABLE     |
+                 SPI_CTL1_PREN_DISABLE   |
+                 SPI_CTL1_PTEN_DISABLE   |
+                 SPI_CTL1_PES_DISABLE    |
+                 SPI_CTL1_MSB_ENABLE;
+
 
     /* Configure Controller mode */
     /*
@@ -63,7 +74,7 @@ void InitializeTFT(void) {
      *     2000000 = (32000000)/((1 + 7) * 2)
      */
 
-    SPI1->CLKCTL = 200; // 10 bits
+    SPI1->CLKCTL = 1023; // 10 bits
 
     // LOOK HERE!
     /* Set RX and TX FIFO threshold levels */
@@ -75,65 +86,99 @@ void InitializeTFT(void) {
 
     /* Enable module */
     SPI1->CTL1 |= SPI_CTL1_ENABLE_ENABLE;
-
-    uint32_t clrPin = 1 << 16;
     
-    GPIOB->DOUTCLR31_0 |= clrPin;
+    GPIOB->DOUTSET31_0 = RST_PIN;
+    delay_cycles(10 * 32000);
+    GPIOB->DOUTCLR31_0 = RST_PIN;
     delay_cycles(20 * 32000);
-    GPIOB->DOUTSET31_0 |= clrPin;
+    GPIOB->DOUTSET31_0 = RST_PIN;
     delay_cycles(150 * 32000);
+}
+
+static void DCHigh(void) {
+    GPIOB->DOUTSET31_0 = DC_PIN;
+}
+
+static void DCLow(void) {
+    GPIOB->DOUTCLR31_0 = DC_PIN;
+}
+
+static void SPISendBlocking(const uint8_t *tx, uint32_t len) {
+    if (!tx || len == 0) return;
+
+    while (SPI1->STAT & SPI_STAT_BUSY_MASK) { }
+
+    spi_tx_buf = tx;
+    spi_len    = len;
+    spi_idx    = 0;
+    spi_busy   = true;
+
+    NVIC_ClearPendingIRQ(SPI1_INT_IRQn);
+    NVIC_EnableIRQ(SPI1_INT_IRQn);
+
+    SPI1->TXDATA = spi_tx_buf[0];
+    spi_idx = 1;
+
+    while (spi_busy) { }
 }
 
 void TFTWriteData(uint8_t *data, uint16_t len) {
     if (!data || len == 0) return;
-    
-    SPIWaitDone();
-
-    SPITransferAsync(data, NULL, len);
-    SPIWaitDone();
+    DCHigh();
+    SPISendBlocking(data, len);
 }
 
 void TFTWriteCommand(uint8_t cmd, uint8_t *params, uint16_t len) {
-    SPIWaitDone();
+    DCLow();
+    SPISendBlocking(&cmd, 1);
 
-    SPISetCDMode(1);
-    SPITransferAsync(&cmd, NULL, 1);
-    SPIWaitDone();
-
-    if (len && params) {
-        SPITransferAsync(params, NULL, len);
-        SPIWaitDone();
+    if (params && len > 0) {
+        DCHigh();
+        SPISendBlocking(params, len);
     }
+
+    DCHigh();
 }
 
 void TFTReadCommand(uint8_t cmd, uint8_t *out, uint16_t len) {
     uint8_t dummy_tx[64];
     if (len > sizeof(dummy_tx)) return;
-
     memset(dummy_tx, 0x00, len);
+
+    if (!out || len == 0) return;
 
     SPIWaitDone();
 
     SPISetCDMode(1);
-    SPITransferAsync(&cmd, NULL, 1);
-    SPIWaitDone();
 
-    uint8_t throwaway;
-    SPITransferAsync(dummy_tx, &throwaway, 1);
-    SPIWaitDone();
+    NVIC_DisableIRQ(SPI1_INT_IRQn);
+    spi_busy = false;
 
-    SPITransferAsync(dummy_tx, out, len);
-    SPIWaitDone();
+    while (SPI1->STAT & SPI_STAT_BUSY_MASK) { }
+
+    SPI1->TXDATA = cmd;
+    while (SPI1->STAT & SPI_STAT_BUSY_MASK) { }
+
+    volatile uint32_t dummy = SPI1->RXDATA;
+
+    SPI1->TXDATA = 0x00;
+    while (SPI1->STAT & SPI_STAT_BUSY_MASK) { }
+    dummy = SPI1->RXDATA;
+
+    for (uint16_t i = 0; i < len; i++) {
+        SPI1->TXDATA = 0x00;
+        while (SPI1->STAT & SPI_STAT_BUSY_MASK) { }
+        out[i] = (uint8_t)(SPI1->RXDATA & 0xFF);
+    }
 }
 
 void SPISetCDMode(uint8_t mode) {
+    SPI1->CTL1 &= ~SPI_CTL1_CDMODE_MASK;
     SPI1->CTL1 |= (mode << SPI_CTL1_CDMODE_OFS);
 }
 
 void SPIWaitDone() {
-    while (spi_busy) {
-        __WFI();
-    }
+    while (spi_busy) {}
 }
 
 bool SPITransferAsync(uint8_t *tx, uint8_t *rx, uint32_t len) {
@@ -141,11 +186,14 @@ bool SPITransferAsync(uint8_t *tx, uint8_t *rx, uint32_t len) {
         return false;
     }
 
+    while (SPI1->STAT & SPI_STAT_BUSY_MASK) { }
+
     spi_tx_buf = tx;
     spi_rx_buf = rx;
     spi_len = len;
     spi_idx = 0;
     spi_busy = true;
+    spi_wakeup = false;
 
     NVIC_ClearPendingIRQ(SPI1_INT_IRQn);
     NVIC_EnableIRQ(SPI1_INT_IRQn);
@@ -161,9 +209,16 @@ void SPI1_IRQHandler(void)
     switch (SPI1->CPU_INT.IIDX) {
         case SPI_CPU_INT_IIDX_STAT_TX_EVT: {
             if (spi_idx < spi_len) {
-                uint8_t b = spi_tx_buf ? spi_tx_buf[spi_idx] : 0x00;
-                SPI1->TXDATA = b;
+                // Feed next byte
+                SPI1->TXDATA = spi_tx_buf[spi_idx];
                 spi_idx++;
+            } else {
+                // All bytes fed into FIFO, now wait for shift register to finish
+                if (!(SPI1->STAT & SPI_STAT_BUSY_MASK)) {
+                    spi_busy = false;
+                    spi_wakeup = true;
+                    NVIC_DisableIRQ(SPI1_INT_IRQn);
+                }
             }
         } break;
 
