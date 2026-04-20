@@ -1,0 +1,107 @@
+/**
+ * These arguments were used when this file was generated. They will be automatically applied on subsequent loads
+ * via the GUI or CLI. Run CLI with '--help' for additional information on how to override these arguments.
+ * @cliArgs --device "MSPM0G350X" --part "Default" --package "LQFP-48(PT)" --product "mspm0_sdk@2.10.00.04"
+ * @v2CliArgs --device "MSPM0G3507" --package "LQFP-48(PT)" --product "mspm0_sdk@2.10.00.04"
+ * @versions {"tool":"1.26.2+4477"}
+ */
+
+/**
+ * Import the modules used in this configuration.
+ */
+const Board         = scripting.addModule("/ti/driverlib/Board");
+const GPIO          = scripting.addModule("/ti/driverlib/GPIO", {}, false);
+const GPIO1         = GPIO.addInstance();
+const GPIO2         = GPIO.addInstance();
+const SYSCTL        = scripting.addModule("/ti/driverlib/SYSCTL");
+const TIMER         = scripting.addModule("/ti/driverlib/TIMER", {}, false);
+const TIMER1        = TIMER.addInstance();
+const ProjectConfig = scripting.addModule("/ti/project_config/ProjectConfig");
+
+/**
+ * Write custom configuration values to the imported modules.
+ */
+
+GPIO1.$name                          = "GPIO_LEDS";
+GPIO1.port                           = "PORTA";
+GPIO1.associatedPins.create(24);
+GPIO1.associatedPins[0].$name        = "Y12";
+GPIO1.associatedPins[0].pin.$assign  = "PA27";
+GPIO1.associatedPins[1].$name        = "Y1";
+GPIO1.associatedPins[1].pin.$assign  = "PA25";
+GPIO1.associatedPins[2].$name        = "Y2";
+GPIO1.associatedPins[2].pin.$assign  = "PA23";
+GPIO1.associatedPins[3].$name        = "Y3";
+GPIO1.associatedPins[3].pin.$assign  = "PA21";
+GPIO1.associatedPins[4].$name        = "Y4";
+GPIO1.associatedPins[4].pin.$assign  = "PA17";
+GPIO1.associatedPins[5].$name        = "Y5";
+GPIO1.associatedPins[5].pin.$assign  = "PA15";
+GPIO1.associatedPins[6].$name        = "Y6";
+GPIO1.associatedPins[6].pin.$assign  = "PA13";
+GPIO1.associatedPins[7].$name        = "Y7";
+GPIO1.associatedPins[7].pin.$assign  = "PA11";
+GPIO1.associatedPins[8].$name        = "Y8";
+GPIO1.associatedPins[8].pin.$assign  = "PA9";
+GPIO1.associatedPins[9].$name        = "Y9";
+GPIO1.associatedPins[9].pin.$assign  = "PA7";
+GPIO1.associatedPins[10].$name       = "Y10";
+GPIO1.associatedPins[10].pin.$assign = "PA5";
+GPIO1.associatedPins[11].$name       = "Y11";
+GPIO1.associatedPins[11].pin.$assign = "PA1";
+GPIO1.associatedPins[12].$name       = "R12";
+GPIO1.associatedPins[12].pin.$assign = "PA0";
+GPIO1.associatedPins[13].$name       = "R1";
+GPIO1.associatedPins[13].pin.$assign = "PA26";
+GPIO1.associatedPins[14].$name       = "R2";
+GPIO1.associatedPins[14].pin.$assign = "PA24";
+GPIO1.associatedPins[15].$name       = "R3";
+GPIO1.associatedPins[15].pin.$assign = "PA22";
+GPIO1.associatedPins[16].$name       = "R4";
+GPIO1.associatedPins[16].pin.$assign = "PA18";
+GPIO1.associatedPins[17].$name       = "R5";
+GPIO1.associatedPins[17].pin.$assign = "PA16";
+GPIO1.associatedPins[18].$name       = "R6";
+GPIO1.associatedPins[18].pin.$assign = "PA14";
+GPIO1.associatedPins[19].$name       = "R7";
+GPIO1.associatedPins[19].pin.$assign = "PA12";
+GPIO1.associatedPins[20].$name       = "R8";
+GPIO1.associatedPins[20].pin.$assign = "PA10";
+GPIO1.associatedPins[21].$name       = "R9";
+GPIO1.associatedPins[21].pin.$assign = "PA8";
+GPIO1.associatedPins[22].$name       = "R10";
+GPIO1.associatedPins[22].pin.$assign = "PA6";
+GPIO1.associatedPins[23].$name       = "R11";
+GPIO1.associatedPins[23].pin.$assign = "PA28";
+
+GPIO2.$name                              = "GPIO_BUTTONS";
+GPIO2.associatedPins[0].$name            = "BUTTON";
+GPIO2.associatedPins[0].direction        = "INPUT";
+GPIO2.associatedPins[0].internalResistor = "PULL_UP";
+GPIO2.associatedPins[0].interruptEn      = true;
+GPIO2.associatedPins[0].polarity         = "RISE_FALL";
+GPIO2.associatedPins[0].pin.$assign      = "PB8";
+
+SYSCTL.powerPolicy           = "STANDBY0";
+SYSCTL.forceDefaultClkConfig = true;
+
+TIMER1.$name              = "TIMER_0";
+TIMER1.timerClkSrc        = "LFCLK";
+TIMER1.timerMode          = "PERIODIC";
+TIMER1.interrupts         = ["ZERO"];
+TIMER1.timerClkPrescale   = 4;
+TIMER1.timerPeriod        = "500ms";
+TIMER1.peripheral.$assign = "TIMG0";
+
+ProjectConfig.genLinker          = false;
+ProjectConfig.migrationCondition = true;
+
+/**
+ * Pinmux solution for unlocked pins/peripherals. This ensures that minor changes to the automatic solver in a future
+ * version of the tool will not impact the pinmux you originally saw.  These lines can be completely deleted in order to
+ * re-solve from scratch.
+ */
+Board.peripheral.$suggestSolution          = "DEBUGSS";
+Board.peripheral.swclkPin.$suggestSolution = "PA20";
+Board.peripheral.swdioPin.$suggestSolution = "PA19";
+SYSCTL.peripheral.$suggestSolution         = "SYSCTL";
