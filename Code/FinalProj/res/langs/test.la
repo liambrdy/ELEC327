@@ -21,14 +21,7 @@ int main() {
         .c = 'a',
     };
 
-    int *const* a;
+    s.ret = RET_SUCCESS;
 
-    for (int i = 0; i < 4; i++) {
-        printf("%d\n", i);
-    }
-
-    ret_code c = RET_SUCCESS;
-    
-    printf(s.msg);
     return s.ret;
 }

@@ -1,4 +1,5 @@
 #include "ast.h"
+#include "semantics.h"
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -62,7 +63,7 @@ ast_node_t *ParsePrimaryExpression(parser_t *p) {
     switch (t->type) {
         case TOKEN_IDENTIFIER: {
             ast_node_t *new = GetNewNode(AST_IDENTIFIER);
-            new->identifier.name = t->strLiteral;
+            new->identifier.name = t->lexeme;
 
             Advance(p);
 
@@ -1374,6 +1375,104 @@ void PrintAstStatement(ast_statement_t *statement, int depth) {
     printf(")");
 }
 
+// ---- Semantic annotation printers ----
+
+static void PrintType(type_t *type) {
+    if (!type) { printf("?"); return; }
+
+    if (type->qualifiers & TYPE_QUALIFIER_CONST)    printf("const ");
+    if (type->qualifiers & TYPE_QUALIFIER_VOLATILE) printf("volatile ");
+    if (type->qualifiers & TYPE_QUALIFIER_RESTRICT) printf("restrict ");
+
+    switch (type->kind) {
+        case TYPE_BUILTIN: {
+            if (type->builtin.sign == SIGN_SIGNED)        printf("signed ");
+            else if (type->builtin.sign == SIGN_UNSIGNED) printf("unsigned ");
+            if      (type->builtin.width == WIDTH_SHORT)    printf("short ");
+            else if (type->builtin.width == WIDTH_LONG)     printf("long ");
+            else if (type->builtin.width == WIDTH_LONGLONG) printf("long long ");
+            switch (type->builtin.base) {
+                case BUILTIN_VOID:   printf("void");   break;
+                case BUILTIN_CHAR:   printf("char");   break;
+                case BUILTIN_INT:    printf("int");    break;
+                case BUILTIN_FLOAT:  printf("float");  break;
+                case BUILTIN_DOUBLE: printf("double"); break;
+                default:             printf("int");    break;
+            }
+        } break;
+
+        case TYPE_POINTER:
+            PrintType(type->ptr.base);
+            printf("*");
+            break;
+
+        case TYPE_ARRAY:
+            PrintType(type->array.base);
+            if (type->array.hasSize) printf("[%u]", type->array.size);
+            else                     printf("[]");
+            break;
+
+        case TYPE_FUNCTION:
+            PrintType(type->function.returnType);
+            printf("(");
+            if (type->function.paramTypes) {
+                int n = (int)DArrayLength(type->function.paramTypes);
+                for (int i = 0; i < n; i++) {
+                    PrintType(type->function.paramTypes[i]);
+                    if (i < n - 1) printf(", ");
+                }
+            }
+            printf(")");
+            break;
+
+        case TYPE_STRUCT:
+            printf("struct");
+            if (type->struct_union.name.str)
+                printf(" " SLICE_STR, SLICE_ARGS(type->struct_union.name));
+            break;
+
+        case TYPE_UNION:
+            printf("union");
+            if (type->struct_union.name.str)
+                printf(" " SLICE_STR, SLICE_ARGS(type->struct_union.name));
+            break;
+
+        case TYPE_ENUM:
+            printf("enum");
+            if (type->enum_type.name.str)
+                printf(" " SLICE_STR, SLICE_ARGS(type->enum_type.name));
+            break;
+
+        default: printf("?"); break;
+    }
+}
+
+// Prints  :<type>  when resolvedType is non-NULL — appended right after a node.
+static void PrintTypeAnnotation(ast_node_t *node) {
+    if (!node->resolvedType) return;
+    printf(":");
+    PrintType(node->resolvedType);
+}
+
+// Prints  [kind]  info for an identifier's symbol — inserted inside Ident().
+static void PrintSymbolAnnotation(ast_node_t *node) {
+    symbol_t *sym = node->symbol;
+    if (!sym) return;
+    printf("[");
+    switch (sym->kind) {
+        case SYMBOL_VAR:          printf("var");                               break;
+        case SYMBOL_FUNC:         printf("func");                              break;
+        case SYMBOL_TYPEDEF:      printf("typedef");                           break;
+        case SYMBOL_ENUM_CONSTS:  printf("enum=%lld", (long long)sym->enumConstantValue); break;
+        case SYMBOL_STRUCT_UNION: printf("struct_tag");                        break;
+        case SYMBOL_ENUM:         printf("enum_tag");                          break;
+        default:                  printf("?");                                 break;
+    }
+    printf("]");
+}
+
+// ---- AST printer ----
+
 void PrintAst(ast_node_t *parent, int depth) {
     switch (parent->type) {
         case AST_PROGRAM: {
@@ -1450,6 +1549,7 @@ void PrintAst(ast_node_t *parent, int depth) {
                 }
             }
             printf("])");
+            PrintTypeAnnotation(parent);
         } break;
 
         case AST_TERNARY_EXPR: {
@@ -1460,6 +1560,7 @@ void PrintAst(ast_node_t *parent, int depth) {
             printf(" : ");
             PrintAst(parent->ternary_expr.else_expr, depth + 1);
             printf(")");
+            PrintTypeAnnotation(parent);
         } break;
 
         case AST_BINARY_EXPR: {
@@ -1468,35 +1569,39 @@ void PrintAst(ast_node_t *parent, int depth) {
             printf(" %s ", BinaryToStr(parent->binary_op.op));
             PrintAst(parent->binary_op.right, depth + 1);
             printf(")");
+            PrintTypeAnnotation(parent);
         } break;
 
         case AST_UNARY_EXPR: {
             printf("UnOp(%s", UnaryToStr(parent->unary_op.op));
             PrintAst(parent->unary_op.expr, depth + 1);
             printf(")");
+            PrintTypeAnnotation(parent);
         } break;
 
         case AST_ASSIGN_EXPR: {
+            printf("Assign(");
             PrintAst(parent->assign_op.left, depth);
             printf(" %s ", AssignToStr(parent->assign_op.op));
             PrintAst(parent->assign_op.right, depth);
+            printf(")");
+            PrintTypeAnnotation(parent);
         } break;
 
         case AST_CAST_EXPR: {
-            printf("(");
-
+            printf("Cast(");
             decl_specifiers_t specs = {
                 .typeQualifier = parent->cast_expr.qualifiers,
                 .typeSpecifier = parent->cast_expr.type,
             };
-            
             PrintDeclSpecifiers(&specs, depth + 1);
             if (parent->cast_expr.declarator) {
                 PrintAstDeclarator(parent->cast_expr.declarator, depth + 1);
             }
-            printf(") ");
+            printf(", ");
             PrintAst(parent->cast_expr.expr, depth + 1);
-            
+            printf(")");
+            PrintTypeAnnotation(parent);
         } break;
 
         case AST_INDEX: {
@@ -1505,24 +1610,31 @@ void PrintAst(ast_node_t *parent, int depth) {
             printf("[");
             PrintAst(parent->index.index, depth + 1);
             printf("])");
+            PrintTypeAnnotation(parent);
         } break;
 
         case AST_MEMBER: {
             printf("Member(");
             PrintAst(parent->member.parent, depth + 1);
             printf("%s" SLICE_STR ")", parent->member.isPointer ? "->" : ".", SLICE_ARGS(parent->member.member));
+            PrintTypeAnnotation(parent);
         } break;
 
         case AST_LITERAL_INT: {
             printf("%d", parent->int_literal.literal);
+            PrintTypeAnnotation(parent);
         } break;
 
         case AST_LITERAL_STRING: {
             printf("\"" SLICE_STR "\"", SLICE_ARGS(parent->string_literal.str));
+            PrintTypeAnnotation(parent);
         } break;
 
         case AST_IDENTIFIER: {
-            printf("Ident(" SLICE_STR ")", SLICE_ARGS(parent->identifier.name));
+            printf("Ident(" SLICE_STR, SLICE_ARGS(parent->identifier.name));
+            PrintSymbolAnnotation(parent);
+            printf(")");
+            PrintTypeAnnotation(parent);
         } break;
 
         default: break;
