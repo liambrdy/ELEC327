@@ -245,6 +245,7 @@ typedef struct ast_initializer_t {
 typedef struct ast_init_declarator_t {
     ast_declarator_t *declarator;
     ast_initializer_t *initializer;
+    type_t *resolvedType; // set by sema; NULL until then
 } ast_init_declarator_t;
 
 typedef struct ast_decl_t {

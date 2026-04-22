@@ -8,7 +8,6 @@
 #include "arena.h"
 #include "file.h"
 #include "semantics.h"
-#include "stringbuf.h"
 #include "codegen/rom.h"
 
 void usage(const char *exe) {
@@ -100,18 +99,20 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    PrintAst(ast, 0);
+    AnnotateAst(ast);
 
-    // AnnotateAst(ast);
+    PrintAst(ast, 0);
 
     printf("Used %ld of %ld bytes after ast\n", globalArena->pos, globalArena->capacity);
     printf("Used %d bytes by darray\n", bytesAllocated);
 
-    string_buf sb = CodegenRom(ast);
+    u32 romSize = 0;
+    u8 *rom = CodegenRom(ast, &romSize);
     if (!args.out_file) {
         args.out_file = "a.out";
     }
-    WriteFile(args.out_file, sb, StringBufGetLen(sb));
+    WriteFile(args.out_file, rom, romSize);
+    free(rom);
 
     free(globalArenaMem);
 

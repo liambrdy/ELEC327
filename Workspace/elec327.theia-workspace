@@ -4,5 +4,7 @@
       "path": ""
     }
   ],
-  "settings": {}
+  "settings": {
+    "CCS.debug.breakpoint.showCore": false
+  }
 }
