@@ -1,0 +1,29 @@
+#ifndef graphics_h
+#define graphics_h
+
+#include <stdint.h>
+
+#define SCREEN_W 240
+#define SCREEN_H 320
+
+#define COLOR_BLACK   0x0000
+#define COLOR_WHITE   0xFFFF
+#define COLOR_RED     0xF800
+#define COLOR_GREEN   0x07E0
+#define COLOR_BLUE    0x001F
+#define COLOR_YELLOW  0xFFE0
+#define COLOR_CYAN    0x07FF
+#define COLOR_MAGENTA 0xF81F
+#define COLOR_ORANGE  0xFC00
+
+void TFTFillScreen(uint16_t color);
+void TFTFillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
+void TFTDrawRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
+void TFTDrawHLine(int16_t x, int16_t y, int16_t len, uint16_t color);
+void TFTDrawVLine(int16_t x, int16_t y, int16_t len, uint16_t color);
+void TFTDrawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color);
+void TFTFillCircle(int16_t cx, int16_t cy, int16_t r, uint16_t color);
+void TFTFillCircleBG(int16_t cx, int16_t cy, int16_t r, uint16_t color, uint16_t bg);
+void TFTDrawCircle(int16_t cx, int16_t cy, int16_t r, uint16_t color);
+
+#endif
