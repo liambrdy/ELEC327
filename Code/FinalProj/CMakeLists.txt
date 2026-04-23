@@ -14,3 +14,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 add_subdirectory(src/common)
 add_subdirectory(src/compiler)
 add_subdirectory(src/vm)
+add_subdirectory(src/simulator)
+add_subdirectory(tools)
+
+enable_testing()
+add_subdirectory(tests)

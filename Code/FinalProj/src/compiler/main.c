@@ -41,6 +41,7 @@ int parse(int argc, char **argv, args_t *outArgs) {
                         outArgs->inc_dirs = DArrayCreate(u8 *);
                     }
                     u8 *dir = argv[i] + 2;
+                    if (*dir == '\0' && i + 1 < argc) dir = argv[++i]; // handle "-I path"
                     DArrayPush(outArgs->inc_dirs, dir);
                 } break;
 

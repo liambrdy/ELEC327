@@ -633,10 +633,10 @@ void ParseDirective(preprocessor_t *pre) {
                 for (int i = 0; i < searchDirLen; i++) {
                     u8 *dir = pre->incDirs[i];
 
-                    u32 newStrLen = strlen(dir) + t.strLiteral.len + 1;
+                    u32 newStrLen = strlen(dir) + 1 + t.strLiteral.len + 1; // +1 for '/'
                     u8 *path = (u8 *)malloc(newStrLen);
 
-                    snprintf(path, newStrLen, "%s" SLICE_STR, dir, SLICE_ARGS(t.strLiteral));
+                    snprintf(path, newStrLen, "%s/" SLICE_STR, dir, SLICE_ARGS(t.strLiteral));
                     loaded_file_t f = LoadFile(path);
                     if (!f.success) {
                         free(path);

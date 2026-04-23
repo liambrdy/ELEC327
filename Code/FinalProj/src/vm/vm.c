@@ -87,11 +87,18 @@ u8 *VmLoadRom(vm_t *vm, const char *path) {
                 printf("vm: code section out of bounds\n");
                 return NULL;
             }
-            // The compiler sets file_offset to point directly at the raw bytecode
-            // (past rom_code_section_fields), and file_size covers only the code bytes.
             code_bytes = buf + sec->file_offset;
             code_size  = sec->file_size;
-            break;
+        } else if (sec->type == SECTION_TYPE_DATA) {
+            if (sec->file_offset + sec->file_size > len) {
+                printf("vm: data section out of bounds\n");
+                return NULL;
+            }
+            if ((u64)sec->mem_address + sec->file_size > VM_MEMORY_SIZE) {
+                printf("vm: data section exceeds memory\n");
+                return NULL;
+            }
+            memcpy(vm->memory + sec->mem_address, buf + sec->file_offset, sec->file_size);
         }
 
         sec_off += sizeof(rom_section_entry_t);
@@ -180,6 +187,24 @@ vm_result_t VmRun(vm_t *vm) {
             case OPCODE_DUP: {
                 if (vm->sp == 0) return VM_ERR_STACK_UNDERFLOW;
                 VM_PUSH(vm->stack[vm->sp - 1]);
+            } break;
+
+            case OPCODE_SWAP: {
+                if (vm->sp < 2) return VM_ERR_STACK_UNDERFLOW;
+                u32 tmp = vm->stack[vm->sp - 1];
+                vm->stack[vm->sp - 1] = vm->stack[vm->sp - 2];
+                vm->stack[vm->sp - 2] = tmp;
+            } break;
+
+            case OPCODE_ROT3: {
+                // (a, b, c) → (c, a, b)  — c (top) sinks to third position
+                if (vm->sp < 3) return VM_ERR_STACK_UNDERFLOW;
+                u32 c = vm->stack[vm->sp - 1];
+                u32 b = vm->stack[vm->sp - 2];
+                u32 a = vm->stack[vm->sp - 3];
+                vm->stack[vm->sp - 3] = c;
+                vm->stack[vm->sp - 2] = a;
+                vm->stack[vm->sp - 1] = b;
             } break;
 
             // ---- Locals ----
@@ -346,6 +371,12 @@ vm_result_t VmRun(vm_t *vm) {
             // ---- Halt ----
             case OPCODE_HALT: {
                 vm->halted = true;
+            } break;
+
+            // ---- Host interface ----
+            case OPCODE_SYSCALL: {
+                u8 id = vm_read_u8(vm);
+                if (vm->syscall_handler) vm->syscall_handler(vm, id);
             } break;
 
             default:

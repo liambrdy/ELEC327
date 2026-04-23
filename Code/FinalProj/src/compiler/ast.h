@@ -6,6 +6,8 @@
 
 #include <stdbool.h>
 
+typedef struct type_t type_t; // forward declaration; full definition in semantics.h
+
 typedef enum ast_binary_op {
     BINARY_OP_ADD,
     BINARY_OP_SUB,
@@ -376,7 +378,6 @@ typedef struct ast_statement_t {
     };
 } ast_statement_t;
 
-typedef struct type_t type_t;
 typedef struct symbol_t symbol_t;
 
 typedef struct ast_node_t {
