@@ -720,8 +720,12 @@ static void RomGenStatement(rom_context_t *ctx, ast_node_t *node) {
         case STATEMENT_JUMP: {
             switch (node->statement.jump.kind) {
                 case JUMP_STATEMENT_RETURN: {
-                    if (node->statement.jump.return_statement.expr)
+                    if (node->statement.jump.return_statement.expr) {
                         RomGenFromAst(ctx, node->statement.jump.return_statement.expr);
+                    } else {
+                        /* void return — push 0 so caller's POP always finds a value */
+                        WriteByte(ctx, OPCODE_PUSH_CONST); WriteU32(ctx, 0);
+                    }
                     WriteByte(ctx, OPCODE_RET);
                 } break;
 
@@ -808,6 +812,12 @@ static void RomGenFromAst(rom_context_t *ctx, ast_node_t *ast) {
             }
 
             RomGenFromAst(ctx, ast->func_def.statement);
+
+            /* Implicit RET so void functions that fall off the end return cleanly.
+               Always pushes 0 to keep caller's POP balanced.
+               Dead code for functions that always hit an explicit return. */
+            WriteByte(ctx, OPCODE_PUSH_CONST); WriteU32(ctx, 0);
+            WriteByte(ctx, OPCODE_RET);
 
             ctx->scope = PopScope(ctx->scope);
             ctx->frameSlot = savedFrameSlot;

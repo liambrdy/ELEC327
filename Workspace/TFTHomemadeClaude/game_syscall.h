@@ -17,6 +17,7 @@ typedef enum {
     SYSCALL_RANDOM              = 6,
     SYSCALL_SEED_RANDOM         = 7,
     SYSCALL_DISPLAY_DRAW_TEXT   = 8,
+    SYSCALL_DISPLAY_DRAW_INT    = 9,
 } syscall_id_t;
 
 /* Display dimensions in landscape mode */

@@ -79,6 +79,28 @@ void sim_syscall(vm_t *vm, u8 id) {
             display_draw_text(x, y, (const char *)(vm->memory + addr), fg, bg);
         } break;
 
+        case SYSCALL_DISPLAY_DRAW_INT: {
+            /* void display_draw_int(int x, int y, int n, int fg, int bg) */
+            int     x  = (int)vm->stack[vm->frame_base + 0];
+            int     y  = (int)vm->stack[vm->frame_base + 1];
+            int32_t n  = (int32_t)vm->stack[vm->frame_base + 2];
+            int     fg = (int)vm->stack[vm->frame_base + 3];
+            int     bg = (int)vm->stack[vm->frame_base + 4];
+            char buf[12];
+            int len = 0;
+            if (n == 0) {
+                buf[len++] = '0';
+            } else {
+                if (n < 0) { buf[len++] = '-'; n = -n; }
+                char tmp[10]; int tlen = 0;
+                uint32_t u = (uint32_t)n;
+                while (u > 0) { tmp[tlen++] = (char)('0' + u % 10); u /= 10; }
+                for (int i = tlen - 1; i >= 0; i--) buf[len++] = tmp[i];
+            }
+            buf[len] = '\0';
+            display_draw_text(x, y, buf, fg, bg);
+        } break;
+
         default:
             printf("sim: unknown syscall id %u\n", (unsigned)id);
             break;

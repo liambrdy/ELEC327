@@ -20,6 +20,8 @@ void seed_random(int seed);                                           /* id 7 */
 /* display_draw_text: draw a null-terminated string using the 5x7 bitmap font.
    fg = foreground color; bg = background color (-1 = transparent). */
 void display_draw_text(int x, int y, int *str, int fg, int bg);       /* id 8 */
+/* display_draw_int: draw an integer as decimal text using the same font. */
+void display_draw_int(int x, int y, int n, int fg, int bg);            /* id 9 */
 
 /* Button bitmask bits returned by buttons_read() */
 #define BTN_UP    1

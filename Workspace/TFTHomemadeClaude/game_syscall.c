@@ -19,6 +19,42 @@ static inline uint16_t mem_read_u16(const vm_t *vm, uint32_t addr) {
     return (uint16_t)vm->memory[addr] | ((uint16_t)vm->memory[addr + 1] << 8);
 }
 
+/* ---- Helper: draw one character of the 5x7 font to the TFT ---- */
+static void draw_char_hw(int cx, int cy, uint8_t ch, uint16_t fg, int bg) {
+    int has_bg = (bg >= 0 && bg <= 0xFFFF);
+    uint16_t bg16 = (uint16_t)bg;
+    const unsigned char *glyph = (ch >= 0x20 && ch <= 0x7E)
+                                 ? font5x7[ch - 0x20]
+                                 : font5x7[0];
+    if (cx >= VM_DISPLAY_W) return;
+
+    for (int row = 0; row < FONT_CHAR_H; row++) {
+        int py = cy + row;
+        if (py < 0 || py >= VM_DISPLAY_H) continue;
+        int x0 = cx < 0 ? 0 : cx;
+        int x1 = (cx + FONT_CHAR_W - 1 >= VM_DISPLAY_W)
+                 ? VM_DISPLAY_W - 1 : cx + FONT_CHAR_W - 1;
+        if (x0 > x1) continue;
+        if (has_bg) {
+            TFTBeginPixels((uint16_t)x0, (uint16_t)py,
+                           (uint16_t)x1, (uint16_t)py);
+            for (int col = x0 - cx; col <= x1 - cx; col++) {
+                int on = (col < 5 && row < 7) && ((glyph[col] >> row) & 1);
+                TFTSendPixel(on ? fg : bg16);
+            }
+            TFTEndPixels();
+        } else {
+            for (int col = x0 - cx; col <= x1 - cx; col++) {
+                if (col >= 5 || row >= 7) continue;
+                if (!((glyph[col] >> row) & 1)) continue;
+                int px = cx + col;
+                TFTFillRegion((uint16_t)px, (uint16_t)py,
+                              (uint16_t)px, (uint16_t)py, fg);
+            }
+        }
+    }
+}
+
 /* ---- Syscall dispatcher ---- */
 
 void game_syscall(vm_t *vm, u8 id) {
@@ -157,51 +193,37 @@ void game_syscall(vm_t *vm, u8 id) {
             uint32_t addr = vm->stack[vm->frame_base + 2];
             uint16_t fg   = (uint16_t)vm->stack[vm->frame_base + 3];
             int      bg   = (int)(int32_t)vm->stack[vm->frame_base + 4];
-            int      has_bg = (bg >= 0 && bg <= 0xFFFF);
-            uint16_t bg16 = (uint16_t)bg;
-
             for (uint32_t i = 0; ; i++) {
                 if (addr + i >= VM_MEMORY_SIZE) break;
                 uint8_t c = vm->memory[addr + i];
                 if (c == 0) break;
+                draw_char_hw(x + (int)i * FONT_CHAR_W, y, c, fg, bg);
+            }
+        } break;
 
-                int cx = x + (int)i * FONT_CHAR_W;
+        /* void display_draw_int(int x, int y, int n, int fg, int bg) -------- */
+        case SYSCALL_DISPLAY_DRAW_INT: {
+            int     x  = (int)(int32_t)vm->stack[vm->frame_base + 0];
+            int     y  = (int)(int32_t)vm->stack[vm->frame_base + 1];
+            int32_t n  = (int32_t)vm->stack[vm->frame_base + 2];
+            uint16_t fg = (uint16_t)vm->stack[vm->frame_base + 3];
+            int     bg = (int)(int32_t)vm->stack[vm->frame_base + 4];
+            char buf[12];
+            int len = 0;
+            if (n == 0) {
+                buf[len++] = '0';
+            } else {
+                if (n < 0) { buf[len++] = '-'; n = -n; }
+                char tmp[10]; int tlen = 0;
+                uint32_t u = (uint32_t)n;
+                while (u > 0) { tmp[tlen++] = (char)('0' + u % 10); u /= 10; }
+                for (int i = tlen - 1; i >= 0; i--) buf[len++] = tmp[i];
+            }
+            buf[len] = '\0';
+            for (int i = 0; buf[i] != '\0'; i++) {
+                int cx = x + i * FONT_CHAR_W;
                 if (cx >= VM_DISPLAY_W) break;
-
-                const unsigned char *glyph = (c >= 0x20 && c <= 0x7E)
-                                             ? font5x7[c - 0x20]
-                                             : font5x7[0];
-
-                for (int row = 0; row < FONT_CHAR_H; row++) {
-                    int py = y + row;
-                    if (py < 0 || py >= VM_DISPLAY_H) continue;
-
-                    /* clamp character horizontally */
-                    int x0 = cx     < 0             ? 0             : cx;
-                    int x1 = cx + FONT_CHAR_W - 1 >= VM_DISPLAY_W
-                             ? VM_DISPLAY_W - 1 : cx + FONT_CHAR_W - 1;
-                    if (x0 > x1) continue;
-
-                    if (has_bg) {
-                        /* stream full character row including background */
-                        TFTBeginPixels((uint16_t)x0, (uint16_t)py,
-                                       (uint16_t)x1, (uint16_t)py);
-                        for (int col = x0 - cx; col <= x1 - cx; col++) {
-                            int on = (col < 5 && row < 7) && ((glyph[col] >> row) & 1);
-                            TFTSendPixel(on ? fg : bg16);
-                        }
-                        TFTEndPixels();
-                    } else {
-                        /* transparent bg: only draw set pixels */
-                        for (int col = x0 - cx; col <= x1 - cx; col++) {
-                            if (col >= 5 || row >= 7) continue;
-                            if (!((glyph[col] >> row) & 1)) continue;
-                            int px = cx + col;
-                            TFTFillRegion((uint16_t)px, (uint16_t)py,
-                                          (uint16_t)px, (uint16_t)py, fg);
-                        }
-                    }
-                }
+                draw_char_hw(cx, y, (uint8_t)buf[i], fg, bg);
             }
         } break;
 

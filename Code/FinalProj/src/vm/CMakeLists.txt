@@ -1,4 +1,4 @@
-add_library(vmlib STATIC vm.c)
+add_library(vmlib STATIC vm.c disass.c)
 target_include_directories(vmlib PUBLIC
     ${CMAKE_SOURCE_DIR}/src/common
     ${CMAKE_SOURCE_DIR}/src/compiler

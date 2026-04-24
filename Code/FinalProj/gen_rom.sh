@@ -54,5 +54,5 @@ ENDPY
 echo "Generating rom_data.h..."
 python3 "$PY_TMP" "$ROM_TMP" "$SCRIPT_DIR/rom_data.h"
 rm -f "$ROM_TMP" "$PY_TMP"
-mv "rom_data.h" "$DST_PATH"
+# mv "rom_data.h" "$DST_PATH"
 echo "Done -- rom_data.h updated. Rebuild the CCS project to flash."
