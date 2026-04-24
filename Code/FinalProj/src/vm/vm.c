@@ -68,7 +68,7 @@ u8 *VmLoadRom(vm_t *vm, const char *path) {
         return NULL;
     }
 
-    // Walk the section table looking for a CODE section.
+    // Walk the section table: first pass to find CODE and validate.
     u32 sec_off = hdr->section_table_off;
     u32 sec_count = hdr->section_count;
     u8 *code_bytes = NULL;
@@ -79,9 +79,7 @@ u8 *VmLoadRom(vm_t *vm, const char *path) {
             printf("vm: section table truncated\n");
             return NULL;
         }
-
         rom_section_entry_t *sec = (rom_section_entry_t *)(buf + sec_off);
-
         if (sec->type == SECTION_TYPE_CODE) {
             if (sec->file_offset + sec->file_size > len) {
                 printf("vm: code section out of bounds\n");
@@ -98,9 +96,7 @@ u8 *VmLoadRom(vm_t *vm, const char *path) {
                 printf("vm: data section exceeds memory\n");
                 return NULL;
             }
-            memcpy(vm->memory + sec->mem_address, buf + sec->file_offset, sec->file_size);
         }
-
         sec_off += sizeof(rom_section_entry_t);
     }
 
@@ -109,7 +105,21 @@ u8 *VmLoadRom(vm_t *vm, const char *path) {
         return NULL;
     }
 
+    // VmInit zeroes vm->memory — must happen BEFORE loading DATA sections.
     VmInit(vm, code_bytes, code_size, hdr->entry_point);
+
+    // Second pass: load DATA sections into the now-zeroed vm->memory.
+    sec_off = hdr->section_table_off;
+    for (u32 i = 0; i < sec_count; i++) {
+        rom_section_entry_t *sec = (rom_section_entry_t *)(buf + sec_off);
+        if (sec->type == SECTION_TYPE_DATA) {
+            memcpy(vm->memory + sec->mem_address,
+                   buf + sec->file_offset,
+                   sec->file_size);
+        }
+        sec_off += sizeof(rom_section_entry_t);
+    }
+
     return buf; // caller owns this; vm->code points into it
 }
 

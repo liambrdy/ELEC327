@@ -11,7 +11,7 @@
 #include "codegen/rom.h"
 
 void usage(const char *exe) {
-    printf("Usage: %s in_file [-o out_file] [-Iinc_dir]\n", exe);
+    printf("Usage: %s in_file [-o out_file] [-Iinc_dir] [-v]\n", exe);
 }
 
 typedef struct args_t {
@@ -19,6 +19,8 @@ typedef struct args_t {
     
     u8 *out_file; // not required
     u8 **inc_dirs; // not required
+
+    bool verbose; // not required
 } args_t;
 
 int parse(int argc, char **argv, args_t *outArgs) {
@@ -43,6 +45,10 @@ int parse(int argc, char **argv, args_t *outArgs) {
                     u8 *dir = argv[i] + 2;
                     if (*dir == '\0' && i + 1 < argc) dir = argv[++i]; // handle "-I path"
                     DArrayPush(outArgs->inc_dirs, dir);
+                } break;
+
+                case 'v': {
+                    outArgs->verbose = true;
                 } break;
 
                 default: {
@@ -91,10 +97,6 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    PrintTokens(tokens);
-
-    printf("Used %ld of %ld bytes after lexer\n", globalArena->pos, globalArena->capacity);
-
     ast_node_t *ast = AstFromTokens(tokens);
     if (!ast) {
         return 1;
@@ -102,10 +104,16 @@ int main(int argc, char **argv) {
 
     AnnotateAst(ast);
 
-    PrintAst(ast, 0);
+    if (args.verbose) {
+        PrintTokens(tokens);
 
-    printf("Used %ld of %ld bytes after ast\n", globalArena->pos, globalArena->capacity);
-    printf("Used %d bytes by darray\n", bytesAllocated);
+        printf("Used %ld of %ld bytes after lexer\n", globalArena->pos, globalArena->capacity);
+        
+        PrintAst(ast, 0);
+    
+        printf("Used %ld of %ld bytes after ast\n", globalArena->pos, globalArena->capacity);
+        printf("Used %d bytes by darray\n", bytesAllocated);
+    }
 
     u32 romSize = 0;
     u8 *rom = CodegenRom(ast, &romSize);

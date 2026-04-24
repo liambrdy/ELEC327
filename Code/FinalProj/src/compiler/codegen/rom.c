@@ -866,6 +866,34 @@ static void RomGenFromAst(rom_context_t *ctx, ast_node_t *ast) {
         } break;
 
         case AST_BINARY_EXPR: {
+            /* Short-circuit operators must NOT pre-evaluate the right side. */
+            if (ast->binary_op.op == BINARY_OP_LOGIC_AND) {
+                /* A && B: eval A; if false push 0, else eval B and normalize. */
+                RomGenFromAst(ctx, ast->binary_op.left);
+                u32 toFalse = EmitJmpPlaceholder(ctx, OPCODE_JMP_IF_NOT);
+                RomGenFromAst(ctx, ast->binary_op.right);
+                WriteByte(ctx, OPCODE_LOGIC_NOT);
+                WriteByte(ctx, OPCODE_LOGIC_NOT); /* normalise to 0/1 */
+                u32 toEnd = EmitJmpPlaceholder(ctx, OPCODE_JMP);
+                PatchJmp(ctx, toFalse, ctx->currentAddress);
+                WriteByte(ctx, OPCODE_PUSH_CONST); WriteU32(ctx, 0);
+                PatchJmp(ctx, toEnd, ctx->currentAddress);
+                break;
+            }
+            if (ast->binary_op.op == BINARY_OP_LOGIC_OR) {
+                /* A || B: eval A; if true push 1, else eval B and normalize. */
+                RomGenFromAst(ctx, ast->binary_op.left);
+                u32 toTrue = EmitJmpPlaceholder(ctx, OPCODE_JMP_IF);
+                RomGenFromAst(ctx, ast->binary_op.right);
+                WriteByte(ctx, OPCODE_LOGIC_NOT);
+                WriteByte(ctx, OPCODE_LOGIC_NOT);
+                u32 toEnd = EmitJmpPlaceholder(ctx, OPCODE_JMP);
+                PatchJmp(ctx, toTrue, ctx->currentAddress);
+                WriteByte(ctx, OPCODE_PUSH_CONST); WriteU32(ctx, 1);
+                PatchJmp(ctx, toEnd, ctx->currentAddress);
+                break;
+            }
+
             RomGenFromAst(ctx, ast->binary_op.left);
             RomGenFromAst(ctx, ast->binary_op.right);
 
@@ -886,30 +914,6 @@ static void RomGenFromAst(rom_context_t *ctx, ast_node_t *ast) {
                 case BINARY_OP_LTE:       WriteByte(ctx, OPCODE_LTE);       break;
                 case BINARY_OP_GT:        WriteByte(ctx, OPCODE_GT);        break;
                 case BINARY_OP_GTE:       WriteByte(ctx, OPCODE_GTE);       break;
-                // Short-circuit &&: if left is false, result is 0; skip right.
-                case BINARY_OP_LOGIC_AND: {
-                    // Stack after left eval: [left]
-                    // JMP_IF_NOT pops left; if false jump to push 0.
-                    u32 toFalse = EmitJmpPlaceholder(ctx, OPCODE_JMP_IF_NOT);
-                    RomGenFromAst(ctx, ast->binary_op.right);
-                    WriteByte(ctx, OPCODE_LOGIC_NOT);
-                    WriteByte(ctx, OPCODE_LOGIC_NOT); // normalise to 0/1
-                    u32 toEnd = EmitJmpPlaceholder(ctx, OPCODE_JMP);
-                    PatchJmp(ctx, toFalse, ctx->currentAddress);
-                    WriteByte(ctx, OPCODE_PUSH_CONST); WriteU32(ctx, 0);
-                    PatchJmp(ctx, toEnd, ctx->currentAddress);
-                } break;
-                // Short-circuit ||: if left is true, result is 1; skip right.
-                case BINARY_OP_LOGIC_OR: {
-                    u32 toTrue = EmitJmpPlaceholder(ctx, OPCODE_JMP_IF);
-                    RomGenFromAst(ctx, ast->binary_op.right);
-                    WriteByte(ctx, OPCODE_LOGIC_NOT);
-                    WriteByte(ctx, OPCODE_LOGIC_NOT);
-                    u32 toEnd = EmitJmpPlaceholder(ctx, OPCODE_JMP);
-                    PatchJmp(ctx, toTrue, ctx->currentAddress);
-                    WriteByte(ctx, OPCODE_PUSH_CONST); WriteU32(ctx, 1);
-                    PatchJmp(ctx, toEnd, ctx->currentAddress);
-                } break;
                 default: break;
             }
         } break;

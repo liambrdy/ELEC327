@@ -207,17 +207,21 @@ void draw_play_screen() {
 
 void show_title() {
     display_fill(COLOR_BLACK);
-    /* Coloured brick preview strip */
-    display_fill_rect(0, 40, DISP_W, 12, COLOR_RED);
-    display_fill_rect(0, 54, DISP_W, 12, COLOR_ORANGE);
-    display_fill_rect(0, 68, DISP_W, 12, COLOR_YELLOW);
-    display_fill_rect(0, 82, DISP_W, 12, COLOR_GREEN);
-    display_fill_rect(0, 96, DISP_W, 12, COLOR_CYAN);
-    display_fill_rect(0, 110, DISP_W, 12, COLOR_BLUE);
 
-    display_draw_text(136, 150, "BREAKOUT", COLOR_YELLOW, COLOR_BLACK);
-    display_draw_text(76, 172, "ARROWS  =  MOVE", COLOR_WHITE, COLOR_BLACK);
-    display_draw_text(112, 188, "Z  =  START", COLOR_WHITE, COLOR_BLACK);
+    /* Title at the top where text is known to render */
+    display_draw_text(136, 6, "BREAKOUT", COLOR_YELLOW, COLOR_BLACK);
+
+    /* Coloured brick preview strip */
+    display_fill_rect(0, 20, DISP_W, 12, COLOR_RED);
+    display_fill_rect(0, 34, DISP_W, 12, COLOR_ORANGE);
+    display_fill_rect(0, 48, DISP_W, 12, COLOR_YELLOW);
+    display_fill_rect(0, 62, DISP_W, 12, COLOR_GREEN);
+    display_fill_rect(0, 76, DISP_W, 12, COLOR_CYAN);
+    display_fill_rect(0, 90, DISP_W, 12, COLOR_BLUE);
+
+    /* Instructions below the strips */
+    display_draw_text(76, 110, "ARROWS  =  MOVE", COLOR_WHITE, COLOR_BLACK);
+    display_draw_text(112, 124, "Z  =  START", COLOR_WHITE, COLOR_BLACK);
 }
 
 void show_gameover() {
@@ -237,13 +241,14 @@ void show_win() {
 }
 
 void show_dead_overlay() {
-    display_fill_rect(50, 192, 220, 36, COLOR_BLACK);
-    display_draw_text(96, 196, "BALL LOST!", COLOR_RED, COLOR_BLACK);
-    display_draw_text(80, 212, "Z = CONTINUE", COLOR_WHITE, COLOR_BLACK);
+    display_fill_rect(0, 108, DISP_W, 28, COLOR_BLACK);
+    display_draw_text(96, 112, "BALL LOST!", COLOR_RED, COLOR_BLACK);
+    display_draw_text(80, 126, "Z = CONTINUE", COLOR_WHITE, COLOR_BLACK);
 }
 
 void clear_dead_overlay() {
-    display_fill_rect(50, 192, 220, 36, COLOR_BLACK);
+    display_fill_rect(0, 108, DISP_W, 28, COLOR_BLACK);
+    repair_bricks(0, 108, DISP_W, 28);
     draw_paddle();
     draw_ball();
 }

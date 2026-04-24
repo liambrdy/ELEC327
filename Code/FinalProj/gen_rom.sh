@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 COMPILER="$REPO_ROOT/Code/FinalProj/build/bin/compiler"
 GAME_API_INC="$REPO_ROOT/Code/FinalProj/res/langs"
-DST_PATH="../../Workspace/TFTHomemadeClaude"
+DST_DIR="$REPO_ROOT/Workspace/TFTHomemadeClaude"
 
 if [ $# -lt 1 ]; then
     echo "Usage: $0 <game.c>"
@@ -52,7 +52,6 @@ with open(dst, 'w') as f:
 ENDPY
 
 echo "Generating rom_data.h..."
-python3 "$PY_TMP" "$ROM_TMP" "$SCRIPT_DIR/rom_data.h"
+python3 "$PY_TMP" "$ROM_TMP" "$DST_DIR/rom_data.h"
 rm -f "$ROM_TMP" "$PY_TMP"
-# mv "rom_data.h" "$DST_PATH"
-echo "Done -- rom_data.h updated. Rebuild the CCS project to flash."
+echo "Done -- $DST_DIR/rom_data.h updated. Rebuild the CCS project to flash."

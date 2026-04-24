@@ -1307,7 +1307,7 @@ void PrintAstStatement(ast_statement_t *statement, int depth) {
                 printf("}");
 
                 if (statement->selection.if_statement.elseStatement) {
-                    printf(" else {\n");
+                    printf(" else { ");
                     PrintAst(statement->selection.if_statement.elseStatement, depth + 1);
                     printf("\n%*s}", (depth + 1) * 4, "");
                 }
