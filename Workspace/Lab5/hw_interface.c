@@ -58,7 +58,6 @@ void InitializeGPIO(void) {
     IOMUX->SECCFG.PINCM[(IOMUX_PINCM37)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM37_PF_TIMA1_CCP0; // TIMA1-CC0 on PA15
     // ===============================================================================================================
 
-
     // ===============================================================================================================
     // Initialize IOMUX for Button inputs
     // We have to do this multiple times, so let's define it once and then re-use the code
