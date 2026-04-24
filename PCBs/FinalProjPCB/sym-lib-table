@@ -1,0 +1,4 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "MSPM0G3507")(type "KiCad")(uri "${KIPRJMOD}/MSPM0G3507.kicad_sym")(options "")(descr ""))
+)
