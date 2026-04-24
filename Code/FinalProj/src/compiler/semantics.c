@@ -424,6 +424,7 @@ static void SemaDecl(sema_context_t *ctx, ast_node_t *node) {
         if (!initDecl->declarator) continue;
 
         type_t   *varType = GetType(ctx, &decl->specifiers, initDecl->declarator);
+        initDecl->resolvedType = varType;
         slice_t   name    = GetNameFromDeclarator(initDecl->declarator);
         if (!name.str) continue;
 

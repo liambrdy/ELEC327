@@ -60,6 +60,12 @@ typedef struct vm_t {
 
     // Exit code: value left on the stack when the outermost RET fires.
     i32 exit_code;
+
+    // Optional host syscall handler (NULL = syscalls are no-ops).
+    // Called by OPCODE_SYSCALL with the 1-byte syscall id.
+    // Args are at vm->stack[vm->frame_base + 0..n-1].
+    // Push a return value onto vm->stack before returning for non-void functions.
+    void (*syscall_handler)(struct vm_t *vm, u8 id);
 } vm_t;
 
 // ---- API ----

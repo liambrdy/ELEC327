@@ -28,6 +28,7 @@ typedef enum rom_section_entry_type {
     SECTION_TYPE_CONST,
     SECTION_TYPE_SYMBOL,
     SECTION_TYPE_DEBUG,
+    SECTION_TYPE_DATA = 5, // raw bytes loaded directly into vm->memory at mem_address
 } rom_section_entry_type;
 
 typedef struct rom_section_entry_t {
@@ -61,6 +62,10 @@ typedef enum opcode {
     OPCODE_POP,
     // [op]            duplicate top of stack
     OPCODE_DUP,
+    // [op]            swap top two stack values
+    OPCODE_SWAP,
+    // [op]            rotate top three: (a,b,c) -> (c,a,b)  [c ends up at bottom of top-3]
+    OPCODE_ROT3,
 
     // ---- Local variable access (index relative to the current frame base) ----
     // [op][u16 slot]  push the value in local slot <slot>
@@ -128,6 +133,9 @@ typedef enum opcode {
     // ---- Miscellaneous ----
     // [op]            halt execution
     OPCODE_HALT,
+    // [op][u8 id]     call host/simulator function by id; args at stack[frame_base+];
+    //                 push return value before returning if non-void
+    OPCODE_SYSCALL,
 
     OPCODE_COUNT,
 } opcode;
@@ -149,12 +157,19 @@ typedef struct rom_variable_t {
     u32 location; // slot index for locals, absolute address for globals
     bool isGlobal;
     slice_t name;
+    type_t *varType; // NULL for scalars; struct type for struct variables
 } rom_variable_t;
 
 typedef struct rom_scope_t {
     hash_table_t *variables;
     struct rom_scope_t *parent;
 } rom_scope_t;
+
+// Per-loop bookkeeping for break/continue backpatching.
+typedef struct loop_ctx_t {
+    u32 *breakPatches;    // DArray<u32>: code-buffer offsets of JMP placeholders
+    u32 *continuePatches; // DArray<u32>: code-buffer offsets of JMP placeholders
+} loop_ctx_t;
 
 typedef struct rom_context_t {
     rom_scope_t *scope;
@@ -167,6 +182,15 @@ typedef struct rom_context_t {
     u32 currentGlobal;
 
     u8 *code;
+
+    loop_ctx_t *loopStack; // DArray<loop_ctx_t>
+
+    // String literal interning — collected during codegen, patched afterwards.
+    u8 *stringData;     // DArray<u8>: null-terminated strings concatenated
+    u32 *stringRefs;    // DArray<u32>: code-buffer offsets of PUSH_CONST operands to patch
+    u32 *stringOffsets; // DArray<u32>: offset within stringData for each ref
+
+    u32 nextSyscallId;  // next ID to assign to a host function prototype
 
     ast_node_t *ast;
 } rom_context_t;
