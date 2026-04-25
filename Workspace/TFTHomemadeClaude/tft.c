@@ -22,13 +22,6 @@ static volatile bool spi_busy;
 #define CS_PIN  (1UL << 6)   // PB6  = CS (PINCM23, driven manually as GPIO)
 
 void InitializeTFT(void) {
-    GPIOB->GPRCM.RSTCTL = (GPIO_RSTCTL_KEY_UNLOCK_W |
-                            GPIO_RSTCTL_RESETSTKYCLR_CLR |
-                            GPIO_RSTCTL_RESETASSERT_ASSERT);
-    GPIOB->GPRCM.PWREN  = (GPIO_PWREN_KEY_UNLOCK_W |
-                            GPIO_PWREN_ENABLE_ENABLE);
-    delay_cycles(POWER_STARTUP_DELAY);
-
     // SPI data/clock pins
     IOMUX->SECCFG.PINCM[(IOMUX_PINCM26)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM26_PF_SPI1_SCLK;
     IOMUX->SECCFG.PINCM[(IOMUX_PINCM24)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM24_PF_SPI1_POCI;
@@ -66,7 +59,7 @@ void InitializeTFT(void) {
      * outputBitRate = (spiInputClock) / ((1 + SCR) * 2)
      * 2000000 = (32000000) / ((1 + 7) * 2)
      */
-    SPI1->CLKCTL = 4; // 2 MHz — try 3 (4 MHz), 1 (8 MHz), 0 (16 MHz)
+    SPI1->CLKCTL = 0; // 8 MHz — change to 0 for 16 MHz if signal is clean
 
     SPI1->CTL1 |= SPI_CTL1_ENABLE_ENABLE;
 
@@ -89,6 +82,25 @@ static void spi_txrx(uint8_t byte) {
     SPI1->TXDATA = byte;
     while (SPI1->STAT & SPI_STAT_RFE_MASK) {}       // wait until RX byte arrives
     volatile uint32_t dummy = SPI1->RXDATA;
+}
+
+// Push one byte into TX FIFO without draining RX — caller must drain before CSHigh.
+static inline void spi_tx(uint8_t byte) {
+    while (!(SPI1->STAT & SPI_STAT_TNF_MASK)) {}
+    SPI1->TXDATA = byte;
+}
+
+// Drain every pending byte from the RX FIFO (discarding all).
+static void spi_drain_rx(void) {
+    while (!(SPI1->STAT & SPI_STAT_RFE_MASK)) {
+        volatile uint32_t _ = SPI1->RXDATA;
+    }
+}
+
+// Wait for SPI to finish all in-flight bits, then drain RX.
+static void spi_flush(void) {
+    while (SPI1->STAT & SPI_STAT_BUSY_MASK) {}
+    spi_drain_rx();
 }
 
 static void SPISendBlocking(const uint8_t *tx, uint32_t len) {
@@ -139,24 +151,42 @@ void TFTReadCommand(uint8_t cmd, uint8_t *out, uint16_t len) {
     CSHigh();
 }
 
-// CASET + PASET + RAMWR + pixels in one CS assertion.
+// CASET + PASET + RAMWR + pixels — all under one CS assertion.
 void TFTFillRegion(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color) {
-    uint8_t p[4];
-    p[0] = x0 >> 8; p[1] = x0 & 0xFF; p[2] = x1 >> 8; p[3] = x1 & 0xFF;
-    TFTWriteCommand(0x2A, p, 4);
-    p[0] = y0 >> 8; p[1] = y0 & 0xFF; p[2] = y1 >> 8; p[3] = y1 & 0xFF;
-    TFTWriteCommand(0x2B, p, 4);
+    uint8_t cmd, p[4];
 
     CSLow();
-    DCLow();
-    spi_txrx(0x2C);
+
+    // CASET
+    cmd = 0x2A;
+    DCLow(); spi_txrx(cmd);
+    p[0] = x0 >> 8; p[1] = x0 & 0xFF; p[2] = x1 >> 8; p[3] = x1 & 0xFF;
+    DCHigh(); SPISendBlocking(p, 4);
+
+    // PASET
+    cmd = 0x2B;
+    DCLow(); spi_txrx(cmd);
+    p[0] = y0 >> 8; p[1] = y0 & 0xFF; p[2] = y1 >> 8; p[3] = y1 & 0xFF;
+    DCHigh(); SPISendBlocking(p, 4);
+
+    // RAMWR then pixel data
+    DCLow(); spi_txrx(0x2C);
     DCHigh();
+
     uint8_t hi = color >> 8, lo = color & 0xFF;
     uint32_t count = (uint32_t)(x1 - x0 + 1) * (y1 - y0 + 1);
+
+    // Pipeline TX; drain RX in bursts to prevent FIFO overflow.
+    uint32_t rx_pending = 0;
     for (uint32_t i = 0; i < count; i++) {
-        spi_txrx(hi);
-        spi_txrx(lo);
+        spi_tx(hi); rx_pending++;
+        spi_tx(lo); rx_pending++;
+        if (rx_pending >= 4) {
+            spi_drain_rx();
+            rx_pending = 0;
+        }
     }
+    spi_flush();
     CSHigh();
 }
 

@@ -99,14 +99,8 @@ void game_syscall(vm_t *vm, u8 id) {
 
         /* int buttons_read() ----------------------------------------------- */
         case SYSCALL_BUTTONS_READ: {
-            /*
-             * TODO: wire up GPIO buttons.
-             * Bit layout (matches game_api.h):
-             *   bit 0 = BTN_UP    bit 1 = BTN_DOWN
-             *   bit 2 = BTN_LEFT  bit 3 = BTN_RIGHT
-             *   bit 4 = BTN_A     bit 5 = BTN_B
-             */
-            vm->stack[vm->sp++] = 0;
+            int buttons = 0;
+            vm->stack[vm->sp++] = buttons;
         } break;
 
         /* int millis() ----------------------------------------------------- */

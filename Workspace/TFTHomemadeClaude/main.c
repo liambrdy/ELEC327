@@ -90,7 +90,25 @@ static vm_t vm;
 
 /* ---- Entry point ---- */
 
+void InitializeGpio() {
+    GPIOA->GPRCM.RSTCTL = (GPIO_RSTCTL_KEY_UNLOCK_W |
+                            GPIO_RSTCTL_RESETSTKYCLR_CLR |
+                            GPIO_RSTCTL_RESETASSERT_ASSERT);
+    GPIOA->GPRCM.PWREN  = (GPIO_PWREN_KEY_UNLOCK_W |
+                            GPIO_PWREN_ENABLE_ENABLE);
+    delay_cycles(POWER_STARTUP_DELAY);
+
+    GPIOB->GPRCM.RSTCTL = (GPIO_RSTCTL_KEY_UNLOCK_W |
+                            GPIO_RSTCTL_RESETSTKYCLR_CLR |
+                            GPIO_RSTCTL_RESETASSERT_ASSERT);
+    GPIOB->GPRCM.PWREN  = (GPIO_PWREN_KEY_UNLOCK_W |
+                            GPIO_PWREN_ENABLE_ENABLE);
+    delay_cycles(POWER_STARTUP_DELAY);
+}
+
 int main(void) {
+    InitializeGpio();
+
     InitializeTFT();
     tft_init_sequence();
     init_systick();

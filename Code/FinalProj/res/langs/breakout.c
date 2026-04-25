@@ -221,7 +221,7 @@ void show_title() {
 
     /* Instructions below the strips */
     display_draw_text(76, 110, "ARROWS  =  MOVE", COLOR_WHITE, COLOR_BLACK);
-    display_draw_text(112, 124, "Z  =  START", COLOR_WHITE, COLOR_BLACK);
+    display_draw_text(112, 124, "A  =  START", COLOR_WHITE, COLOR_BLACK);
 }
 
 void show_gameover() {
@@ -229,7 +229,7 @@ void show_gameover() {
     display_draw_text(100, 104, "GAME OVER", COLOR_RED, COLOR_BLACK);
     display_draw_text(88, 122, "SCORE:", COLOR_WHITE, COLOR_BLACK);
     display_draw_int(136, 122, score, COLOR_YELLOW, COLOR_BLACK);
-    display_draw_text(88, 140, "Z = PLAY AGAIN", COLOR_WHITE, COLOR_BLACK);
+    display_draw_text(88, 140, "A = PLAY AGAIN", COLOR_WHITE, COLOR_BLACK);
 }
 
 void show_win() {
@@ -237,13 +237,13 @@ void show_win() {
     display_draw_text(108, 104, "YOU WIN!", COLOR_GREEN, COLOR_BLACK);
     display_draw_text(88, 122, "SCORE:", COLOR_WHITE, COLOR_BLACK);
     display_draw_int(136, 122, score, COLOR_YELLOW, COLOR_BLACK);
-    display_draw_text(88, 140, "Z = PLAY AGAIN", COLOR_WHITE, COLOR_BLACK);
+    display_draw_text(88, 140, "A = PLAY AGAIN", COLOR_WHITE, COLOR_BLACK);
 }
 
 void show_dead_overlay() {
     display_fill_rect(0, 108, DISP_W, 28, COLOR_BLACK);
     display_draw_text(96, 112, "BALL LOST!", COLOR_RED, COLOR_BLACK);
-    display_draw_text(80, 126, "Z = CONTINUE", COLOR_WHITE, COLOR_BLACK);
+    display_draw_text(80, 126, "A = CONTINUE", COLOR_WHITE, COLOR_BLACK);
 }
 
 void clear_dead_overlay() {

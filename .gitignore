@@ -34,3 +34,5 @@ build/
 .theia/
 *.theia-worksace
 .jxbrowser.userdata/
+
+*.rom
