@@ -101,6 +101,18 @@ void sim_syscall(vm_t *vm, u8 id) {
             display_draw_text(x, y, buf, fg, bg);
         } break;
 
+        case SYSCALL_DISPLAY_SCROLL_DEFINE: {
+            int left  = (int)vm->stack[vm->frame_base + 0];
+            int width = (int)vm->stack[vm->frame_base + 1];
+            int right = (int)vm->stack[vm->frame_base + 2];
+            display_scroll_define(left, width, right);
+        } break;
+
+        case SYSCALL_DISPLAY_SCROLL_SET: {
+            int pos = (int)vm->stack[vm->frame_base + 0];
+            display_scroll_set(pos);
+        } break;
+
         default:
             printf("sim: unknown syscall id %u\n", (unsigned)id);
             break;

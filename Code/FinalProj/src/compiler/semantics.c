@@ -602,16 +602,15 @@ static void SemaStatement(sema_context_t *ctx, ast_node_t *stmt) {
             // Each compound statement is its own scope.
             ctx->scope = PushScope(ctx->scope);
 
-            if (stmt->statement.compound.declarations) {
-                int n = DArrayLength(stmt->statement.compound.declarations);
-                for (int i = 0; i < n; i++)
-                    SemaDecl(ctx, stmt->statement.compound.declarations[i]);
-            }
-
             if (stmt->statement.compound.statements) {
                 int n = DArrayLength(stmt->statement.compound.statements);
-                for (int i = 0; i < n; i++)
-                    SemaStatement(ctx, stmt->statement.compound.statements[i]);
+                for (int i = 0; i < n; i++) {
+                    ast_node_t *item = stmt->statement.compound.statements[i];
+                    if (item->type == AST_DECL)
+                        SemaDecl(ctx, item);
+                    else
+                        SemaStatement(ctx, item);
+                }
             }
 
             ctx->scope = PopScope(ctx->scope);

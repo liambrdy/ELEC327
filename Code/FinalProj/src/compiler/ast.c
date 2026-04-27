@@ -872,16 +872,13 @@ ast_node_t *ParseStatement(parser_t *p) {
         case STATEMENT_COMPOUND: {
             ExpectPunctuation(p, PUNCTUATION_OPEN_CURLY, "expects open curly bracket for compound statement");
             while (!MatchPunctuation(p, PUNCTUATION_CLOSE_CURLY)) {
+                if (!statement->statement.compound.statements)
+                    statement->statement.compound.statements = DArrayCreate(ast_node_t *);
+
                 if (IsDeclarationStart(p)) {
-                    if (!statement->statement.compound.declarations)
-                        statement->statement.compound.declarations = DArrayCreate(ast_node_t *);
-
                     ast_node_t *decl = ParseDeclaration(p);
-                    DArrayPush(statement->statement.compound.declarations, decl);
+                    DArrayPush(statement->statement.compound.statements, decl);
                 } else {
-                    if (!statement->statement.compound.statements)
-                        statement->statement.compound.statements = DArrayCreate(ast_node_t *);
-
                     ast_node_t *s = ParseStatement(p);
                     DArrayPush(statement->statement.compound.statements, s);
                 }

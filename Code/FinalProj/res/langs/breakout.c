@@ -294,6 +294,7 @@ void update_ball() {
             game_state = STATE_GAMEOVER;
         } else {
             game_state = STATE_DEAD;
+            erase_ball();
             reset_ball();
         }
         return;

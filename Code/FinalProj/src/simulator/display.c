@@ -10,6 +10,15 @@ static SDL_Renderer *renderer = NULL;
 static SDL_Texture  *texture  = NULL;
 static uint32_t      framebuf[DISPLAY_H * DISPLAY_W];
 
+/* Scroll state — mirrors ILI9341 VSCRDEF / VSCRSADD.
+   In landscape mode the scroll area pans horizontally. */
+static int scroll_tfa = 0;           /* left fixed pixels  */
+static int scroll_vsa = DISPLAY_W;   /* scrolling pixels   */
+static int scroll_pos = 0;           /* current scroll offset (0 = no shift) */
+
+/* Second framebuffer used only when scroll is active. */
+static uint32_t scroll_buf[DISPLAY_H * DISPLAY_W];
+
 static uint32_t rgb565_to_u32(int color) {
     uint16_t c = (uint16_t)(color & 0xFFFF);
     uint8_t r = (uint8_t)(((c >> 11) & 0x1F) << 3);
@@ -109,10 +118,54 @@ void display_draw_text(int x, int y, const char *str, int fg, int bg) {
     }
 }
 
+void display_scroll_define(int left_fixed, int scroll_width, int right_fixed) {
+    (void)right_fixed; /* BFA is implied: DISPLAY_W - left_fixed - scroll_width */
+    scroll_tfa = left_fixed;
+    scroll_vsa = scroll_width;
+    scroll_pos = 0;    /* reset position when scroll area changes */
+}
+
+void display_scroll_set(int pos) {
+    scroll_pos = pos;
+}
+
 void display_present(void) {
-    SDL_UpdateTexture(texture, NULL, framebuf, DISPLAY_W * (int)sizeof(uint32_t));
+    uint32_t *pixels = framebuf;
+
+    if (scroll_pos != 0) {
+        /*
+         * Build a scrolled view of the framebuffer into scroll_buf.
+         *
+         * For each screen column x:
+         *   - x in [0, TFA)            : fixed  → src = framebuf col x
+         *   - x in [TFA, TFA+VSA)      : scrolls → src = framebuf col
+         *                                  TFA + (scroll_pos + (x-TFA)) % VSA
+         *   - x in [TFA+VSA, DISPLAY_W): fixed  → src = framebuf col x
+         *
+         * All rows apply the same column mapping, so build a lookup table
+         * for the column remapping first, then apply it to every row.
+         */
+        int col_map[DISPLAY_W];
+        int right_start = scroll_tfa + scroll_vsa;
+        for (int x = 0; x < DISPLAY_W; x++) {
+            if (x < scroll_tfa || x >= right_start) {
+                col_map[x] = x;
+            } else {
+                col_map[x] = scroll_tfa + (scroll_pos + (x - scroll_tfa)) % scroll_vsa;
+            }
+        }
+
+        for (int y = 0; y < DISPLAY_H; y++) {
+            const uint32_t *src = &framebuf[y * DISPLAY_W];
+            uint32_t       *dst = &scroll_buf[y * DISPLAY_W];
+            for (int x = 0; x < DISPLAY_W; x++)
+                dst[x] = src[col_map[x]];
+        }
+        pixels = scroll_buf;
+    }
+
+    SDL_UpdateTexture(texture, NULL, pixels, DISPLAY_W * (int)sizeof(uint32_t));
     SDL_RenderClear(renderer);
-    // Scale the 240x320 texture up to fill the window.
     SDL_Rect dst = { 0, 0, DISPLAY_W * SCALE, DISPLAY_H * SCALE };
     SDL_RenderCopy(renderer, texture, NULL, &dst);
     SDL_RenderPresent(renderer);

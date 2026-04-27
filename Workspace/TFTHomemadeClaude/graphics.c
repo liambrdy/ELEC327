@@ -1,5 +1,7 @@
 #include "graphics.h"
 #include "tft.h"
+#include "font5x7.h"
+#include <stdint.h>
 
 void TFTFillScreen(uint16_t color) {
     TFTFillRegion(0, 0, SCREEN_W - 1, SCREEN_H - 1, color);
@@ -69,6 +71,77 @@ void TFTFillCircleBG(int16_t cx, int16_t cy, int16_t r, uint16_t color, uint16_t
 
 void TFTFillCircle(int16_t cx, int16_t cy, int16_t r, uint16_t color) {
     TFTFillCircleBG(cx, cy, r, color, COLOR_BLACK);
+}
+
+/* ---- Text drawing ------------------------------------------------------ */
+
+/* Row-by-row char render; bg < 0 = transparent (only fg pixels are written). */
+void TFTDrawCharEx(int16_t x, int16_t y, uint8_t ch, uint16_t fg, int bg) {
+    if (ch < 0x20 || ch > 0x7E) ch = (uint8_t)'?';
+    const unsigned char *g = font5x7[ch - 0x20];
+    int has_bg = (bg >= 0);
+    uint16_t bg16 = (uint16_t)bg;
+
+    for (int row = 0; row < FONT_CHAR_H; row++) {
+        int py = y + row;
+        if (py < 0 || py >= SCREEN_H) continue;
+        int x0 = x < 0 ? 0 : x;
+        int x1 = (x + FONT_CHAR_W - 1 >= SCREEN_W) ? SCREEN_W - 1 : x + FONT_CHAR_W - 1;
+        if (x0 > x1) continue;
+
+        if (has_bg) {
+            TFTBeginPixels((uint16_t)x0, (uint16_t)py, (uint16_t)x1, (uint16_t)py);
+            for (int col = x0 - x; col <= x1 - x; col++) {
+                int on = (col < 5 && row < 7) && ((g[col] >> row) & 1);
+                TFTSendPixel(on ? fg : bg16);
+            }
+            TFTEndPixels();
+        } else {
+            for (int col = x0 - x; col <= x1 - x; col++) {
+                if (col >= 5 || row >= 7) continue;
+                if (!((g[col] >> row) & 1)) continue;
+                int px = x + col;
+                TFTFillRegion((uint16_t)px, (uint16_t)py, (uint16_t)px, (uint16_t)py, fg);
+            }
+        }
+    }
+}
+
+void TFTDrawChar(int16_t x, int16_t y, char ch, uint16_t fg, uint16_t bg) {
+    TFTDrawCharEx(x, y, (uint8_t)ch, fg, (int)bg);
+}
+
+void TFTDrawStringEx(int16_t x, int16_t y, const char *s, uint16_t fg, int bg) {
+    while (*s) {
+        if (x >= SCREEN_W) break;
+        TFTDrawCharEx(x, y, (uint8_t)*s++, fg, bg);
+        x += FONT_CHAR_W;
+    }
+}
+
+void TFTDrawString(int16_t x, int16_t y, const char *s, uint16_t fg, uint16_t bg) {
+    TFTDrawStringEx(x, y, s, fg, (int)bg);
+}
+
+void TFTDrawIntEx(int16_t x, int16_t y, int32_t n, uint16_t fg, int bg) {
+    char buf[12];
+    int  len = 0;
+    if (n == 0) {
+        buf[len++] = '0';
+    } else {
+        if (n < 0) { buf[len++] = '-'; n = -n; }
+        char     tmp[10];
+        int      tlen = 0;
+        uint32_t u = (uint32_t)n;
+        while (u > 0) { tmp[tlen++] = (char)('0' + u % 10); u /= 10; }
+        for (int i = tlen - 1; i >= 0; i--) buf[len++] = tmp[i];
+    }
+    buf[len] = '\0';
+    TFTDrawStringEx(x, y, buf, fg, bg);
+}
+
+void TFTDrawInt(int16_t x, int16_t y, int32_t n, uint16_t fg, uint16_t bg) {
+    TFTDrawIntEx(x, y, n, fg, (int)bg);
 }
 
 // Circle outline using Bresenham midpoint algorithm

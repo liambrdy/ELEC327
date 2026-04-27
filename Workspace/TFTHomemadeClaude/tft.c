@@ -214,6 +214,23 @@ void TFTEndPixels(void) {
     CSHigh();
 }
 
+/* ---- Hardware scroll ---------------------------------------------------- */
+
+void TFTScrollDefine(uint16_t left_fixed, uint16_t scroll_width, uint16_t right_fixed) {
+    uint8_t p[6];
+    p[0] = left_fixed    >> 8; p[1] = left_fixed    & 0xFF;
+    p[2] = scroll_width  >> 8; p[3] = scroll_width  & 0xFF;
+    p[4] = right_fixed   >> 8; p[5] = right_fixed   & 0xFF;
+    TFTWriteCommand(0x33, p, 6);
+}
+
+void TFTScrollSet(uint16_t pos) {
+    uint8_t p[2];
+    p[0] = pos >> 8;
+    p[1] = pos & 0xFF;
+    TFTWriteCommand(0x37, p, 2);
+}
+
 void SPISetCDMode(uint8_t mode) {
     SPI1->CTL1 &= ~SPI_CTL1_CDMODE_MASK;
     SPI1->CTL1 |= (mode << SPI_CTL1_CDMODE_OFS);

@@ -1,6 +1,7 @@
 #include "game_syscall.h"
 #include "tft.h"
-#include "font5x7.h"
+#include "graphics.h"
+#include "buttons.h"
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -19,42 +20,6 @@ static inline uint16_t mem_read_u16(const vm_t *vm, uint32_t addr) {
     return (uint16_t)vm->memory[addr] | ((uint16_t)vm->memory[addr + 1] << 8);
 }
 
-/* ---- Helper: draw one character of the 5x7 font to the TFT ---- */
-static void draw_char_hw(int cx, int cy, uint8_t ch, uint16_t fg, int bg) {
-    int has_bg = (bg >= 0 && bg <= 0xFFFF);
-    uint16_t bg16 = (uint16_t)bg;
-    const unsigned char *glyph = (ch >= 0x20 && ch <= 0x7E)
-                                 ? font5x7[ch - 0x20]
-                                 : font5x7[0];
-    if (cx >= VM_DISPLAY_W) return;
-
-    for (int row = 0; row < FONT_CHAR_H; row++) {
-        int py = cy + row;
-        if (py < 0 || py >= VM_DISPLAY_H) continue;
-        int x0 = cx < 0 ? 0 : cx;
-        int x1 = (cx + FONT_CHAR_W - 1 >= VM_DISPLAY_W)
-                 ? VM_DISPLAY_W - 1 : cx + FONT_CHAR_W - 1;
-        if (x0 > x1) continue;
-        if (has_bg) {
-            TFTBeginPixels((uint16_t)x0, (uint16_t)py,
-                           (uint16_t)x1, (uint16_t)py);
-            for (int col = x0 - cx; col <= x1 - cx; col++) {
-                int on = (col < 5 && row < 7) && ((glyph[col] >> row) & 1);
-                TFTSendPixel(on ? fg : bg16);
-            }
-            TFTEndPixels();
-        } else {
-            for (int col = x0 - cx; col <= x1 - cx; col++) {
-                if (col >= 5 || row >= 7) continue;
-                if (!((glyph[col] >> row) & 1)) continue;
-                int px = cx + col;
-                TFTFillRegion((uint16_t)px, (uint16_t)py,
-                              (uint16_t)px, (uint16_t)py, fg);
-            }
-        }
-    }
-}
-
 /* ---- Syscall dispatcher ---- */
 
 void game_syscall(vm_t *vm, u8 id) {
@@ -63,7 +28,7 @@ void game_syscall(vm_t *vm, u8 id) {
         /* display_fill(int color) ----------------------------------------- */
         case SYSCALL_DISPLAY_FILL: {
             uint16_t color = (uint16_t)vm->stack[vm->frame_base + 0];
-            TFTFillRegion(0, 0, VM_DISPLAY_W - 1, VM_DISPLAY_H - 1, color);
+            TFTFillScreen(color);
         } break;
 
         /* display_draw_pixel(int x, int y, int color) ---------------------- */
@@ -83,24 +48,12 @@ void game_syscall(vm_t *vm, u8 id) {
             int w = (int)(int32_t)vm->stack[vm->frame_base + 2];
             int h = (int)(int32_t)vm->stack[vm->frame_base + 3];
             uint16_t c = (uint16_t)vm->stack[vm->frame_base + 4];
-
-            /* clamp to screen */
-            int x0 = x < 0 ? 0 : x;
-            int y0 = y < 0 ? 0 : y;
-            int x1 = x + w - 1;
-            int y1 = y + h - 1;
-            if (x1 >= VM_DISPLAY_W) x1 = VM_DISPLAY_W - 1;
-            if (y1 >= VM_DISPLAY_H) y1 = VM_DISPLAY_H - 1;
-            if (x0 > x1 || y0 > y1) break;
-
-            TFTFillRegion((uint16_t)x0, (uint16_t)y0,
-                          (uint16_t)x1, (uint16_t)y1, c);
+            TFTFillRect((int16_t)x, (int16_t)y, (int16_t)w, (int16_t)h, c);
         } break;
 
         /* int buttons_read() ----------------------------------------------- */
         case SYSCALL_BUTTONS_READ: {
-            int buttons = 0;
-            vm->stack[vm->sp++] = buttons;
+            vm->stack[vm->sp++] = hw_buttons_read();
         } break;
 
         /* int millis() ----------------------------------------------------- */
@@ -191,34 +144,108 @@ void game_syscall(vm_t *vm, u8 id) {
                 if (addr + i >= VM_MEMORY_SIZE) break;
                 uint8_t c = vm->memory[addr + i];
                 if (c == 0) break;
-                draw_char_hw(x + (int)i * FONT_CHAR_W, y, c, fg, bg);
+                TFTDrawCharEx(x + (int)i * FONT_CHAR_W, y, c, fg, bg);
             }
         } break;
 
         /* void display_draw_int(int x, int y, int n, int fg, int bg) -------- */
         case SYSCALL_DISPLAY_DRAW_INT: {
-            int     x  = (int)(int32_t)vm->stack[vm->frame_base + 0];
-            int     y  = (int)(int32_t)vm->stack[vm->frame_base + 1];
-            int32_t n  = (int32_t)vm->stack[vm->frame_base + 2];
+            int      x  = (int)(int32_t)vm->stack[vm->frame_base + 0];
+            int      y  = (int)(int32_t)vm->stack[vm->frame_base + 1];
+            int32_t  n  = (int32_t)vm->stack[vm->frame_base + 2];
             uint16_t fg = (uint16_t)vm->stack[vm->frame_base + 3];
-            int     bg = (int)(int32_t)vm->stack[vm->frame_base + 4];
-            char buf[12];
-            int len = 0;
-            if (n == 0) {
-                buf[len++] = '0';
-            } else {
-                if (n < 0) { buf[len++] = '-'; n = -n; }
-                char tmp[10]; int tlen = 0;
-                uint32_t u = (uint32_t)n;
-                while (u > 0) { tmp[tlen++] = (char)('0' + u % 10); u /= 10; }
-                for (int i = tlen - 1; i >= 0; i--) buf[len++] = tmp[i];
-            }
-            buf[len] = '\0';
-            for (int i = 0; buf[i] != '\0'; i++) {
-                int cx = x + i * FONT_CHAR_W;
-                if (cx >= VM_DISPLAY_W) break;
-                draw_char_hw(cx, y, (uint8_t)buf[i], fg, bg);
-            }
+            int      bg = (int)(int32_t)vm->stack[vm->frame_base + 4];
+            TFTDrawIntEx((int16_t)x, (int16_t)y, n, fg, bg);
+        } break;
+
+        /* void display_scroll_define(int left, int width, int right) -------- */
+        case SYSCALL_DISPLAY_SCROLL_DEFINE: {
+            uint16_t left  = (uint16_t)vm->stack[vm->frame_base + 0];
+            uint16_t width = (uint16_t)vm->stack[vm->frame_base + 1];
+            uint16_t right = (uint16_t)vm->stack[vm->frame_base + 2];
+            TFTScrollDefine(left, width, right);
+        } break;
+
+        /* void display_scroll_set(int pos) ---------------------------------- */
+        case SYSCALL_DISPLAY_SCROLL_SET: {
+            uint16_t pos = (uint16_t)vm->stack[vm->frame_base + 0];
+            TFTScrollSet(pos);
+        } break;
+
+        /* void display_draw_rect(int x, int y, int w, int h, int color) ---- */
+        case SYSCALL_DISPLAY_DRAW_RECT: {
+            int x = (int)(int32_t)vm->stack[vm->frame_base + 0];
+            int y = (int)(int32_t)vm->stack[vm->frame_base + 1];
+            int w = (int)(int32_t)vm->stack[vm->frame_base + 2];
+            int h = (int)(int32_t)vm->stack[vm->frame_base + 3];
+            uint16_t c = (uint16_t)vm->stack[vm->frame_base + 4];
+            TFTDrawRect((int16_t)x, (int16_t)y, (int16_t)w, (int16_t)h, c);
+        } break;
+
+        /* void display_draw_hline(int x, int y, int len, int color) --------- */
+        case SYSCALL_DISPLAY_DRAW_HLINE: {
+            int x = (int)(int32_t)vm->stack[vm->frame_base + 0];
+            int y = (int)(int32_t)vm->stack[vm->frame_base + 1];
+            int l = (int)(int32_t)vm->stack[vm->frame_base + 2];
+            uint16_t c = (uint16_t)vm->stack[vm->frame_base + 3];
+            TFTDrawHLine((int16_t)x, (int16_t)y, (int16_t)l, c);
+        } break;
+
+        /* void display_draw_vline(int x, int y, int len, int color) --------- */
+        case SYSCALL_DISPLAY_DRAW_VLINE: {
+            int x = (int)(int32_t)vm->stack[vm->frame_base + 0];
+            int y = (int)(int32_t)vm->stack[vm->frame_base + 1];
+            int l = (int)(int32_t)vm->stack[vm->frame_base + 2];
+            uint16_t c = (uint16_t)vm->stack[vm->frame_base + 3];
+            TFTDrawVLine((int16_t)x, (int16_t)y, (int16_t)l, c);
+        } break;
+
+        /* void display_draw_line(int x0, int y0, int x1, int y1, int color) - */
+        case SYSCALL_DISPLAY_DRAW_LINE: {
+            int x0 = (int)(int32_t)vm->stack[vm->frame_base + 0];
+            int y0 = (int)(int32_t)vm->stack[vm->frame_base + 1];
+            int x1 = (int)(int32_t)vm->stack[vm->frame_base + 2];
+            int y1 = (int)(int32_t)vm->stack[vm->frame_base + 3];
+            uint16_t c = (uint16_t)vm->stack[vm->frame_base + 4];
+            TFTDrawLine((int16_t)x0, (int16_t)y0, (int16_t)x1, (int16_t)y1, c);
+        } break;
+
+        /* void display_fill_circle(int cx, int cy, int r, int color) -------- */
+        case SYSCALL_DISPLAY_FILL_CIRCLE: {
+            int cx = (int)(int32_t)vm->stack[vm->frame_base + 0];
+            int cy = (int)(int32_t)vm->stack[vm->frame_base + 1];
+            int r  = (int)(int32_t)vm->stack[vm->frame_base + 2];
+            uint16_t c = (uint16_t)vm->stack[vm->frame_base + 3];
+            TFTFillCircle((int16_t)cx, (int16_t)cy, (int16_t)r, c);
+        } break;
+
+        /* void display_fill_circle_bg(int cx, int cy, int r, int color, int bg) */
+        case SYSCALL_DISPLAY_FILL_CIRCLE_BG: {
+            int cx = (int)(int32_t)vm->stack[vm->frame_base + 0];
+            int cy = (int)(int32_t)vm->stack[vm->frame_base + 1];
+            int r  = (int)(int32_t)vm->stack[vm->frame_base + 2];
+            uint16_t c  = (uint16_t)vm->stack[vm->frame_base + 3];
+            uint16_t bg = (uint16_t)vm->stack[vm->frame_base + 4];
+            TFTFillCircleBG((int16_t)cx, (int16_t)cy, (int16_t)r, c, bg);
+        } break;
+
+        /* void display_draw_circle(int cx, int cy, int r, int color) -------- */
+        case SYSCALL_DISPLAY_DRAW_CIRCLE: {
+            int cx = (int)(int32_t)vm->stack[vm->frame_base + 0];
+            int cy = (int)(int32_t)vm->stack[vm->frame_base + 1];
+            int r  = (int)(int32_t)vm->stack[vm->frame_base + 2];
+            uint16_t c = (uint16_t)vm->stack[vm->frame_base + 3];
+            TFTDrawCircle((int16_t)cx, (int16_t)cy, (int16_t)r, c);
+        } break;
+
+        /* void display_draw_char(int x, int y, int ch, int fg, int bg) ------ */
+        case SYSCALL_DISPLAY_DRAW_CHAR: {
+            int      x  = (int)(int32_t)vm->stack[vm->frame_base + 0];
+            int      y  = (int)(int32_t)vm->stack[vm->frame_base + 1];
+            uint8_t  ch = (uint8_t)vm->stack[vm->frame_base + 2];
+            uint16_t fg = (uint16_t)vm->stack[vm->frame_base + 3];
+            int      bg = (int)(int32_t)vm->stack[vm->frame_base + 4];
+            TFTDrawCharEx((int16_t)x, (int16_t)y, ch, fg, bg);
         } break;
 
         default:

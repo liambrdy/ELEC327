@@ -36,7 +36,8 @@
 
 MEMORY
 {
-    FLASH           (RX)  : origin = 0x00000000, length = 0x00020000
+    FLASH           (RX)  : origin = 0x00000000, length = 0x00018000  /* 96 KB firmware */
+    ROM_SLOT        (R)   : origin = 0x00018000, length = 0x00008000  /* 32 KB game ROMs (written at runtime) */
     SRAM            (RWX) : origin = 0x20200000, length = 0x00008000
     BCR_CONFIG      (R)   : origin = 0x41C00000, length = 0x00000080
     BSL_CONFIG      (R)   : origin = 0x41C00100, length = 0x00000080

@@ -498,12 +498,6 @@ static void RomGenStatement(rom_context_t *ctx, ast_node_t *node) {
         case STATEMENT_COMPOUND: {
             ctx->scope = PushScope(ctx->scope);
 
-            if (node->statement.compound.declarations) {
-                u32 n = DArrayLength(node->statement.compound.declarations);
-                for (u32 i = 0; i < n; i++)
-                    RomGenDecl(ctx, node->statement.compound.declarations[i]);
-            }
-
             if (node->statement.compound.statements) {
                 u32 n = DArrayLength(node->statement.compound.statements);
                 for (u32 i = 0; i < n; i++)

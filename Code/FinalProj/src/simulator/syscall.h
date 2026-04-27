@@ -15,8 +15,10 @@ typedef enum {
     SYSCALL_DISPLAY_DRAW_BITMAP = 5,
     SYSCALL_RANDOM              = 6,
     SYSCALL_SEED_RANDOM         = 7,
-    SYSCALL_DISPLAY_DRAW_TEXT   = 8,
-    SYSCALL_DISPLAY_DRAW_INT    = 9,
+    SYSCALL_DISPLAY_DRAW_TEXT     = 8,
+    SYSCALL_DISPLAY_DRAW_INT      = 9,
+    SYSCALL_DISPLAY_SCROLL_DEFINE = 10,
+    SYSCALL_DISPLAY_SCROLL_SET    = 11,
 } syscall_id_t;
 
 void sim_syscall(vm_t *vm, u8 id);

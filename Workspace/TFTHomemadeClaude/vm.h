@@ -89,7 +89,7 @@ typedef enum {
 
 #define VM_STACK_SIZE   512    /* u32 slots  = 2 KB  */
 #define VM_MAX_FRAMES    64    /* call depth = 512 B */
-#define VM_MEMORY_SIZE  16384  /* flat RAM   = 16 KB */
+#define VM_MEMORY_SIZE  12288  /* flat RAM   = 12 KB (reduced to leave room for ROM buffer) */
 
 /* ---- VM structs ---- */
 
