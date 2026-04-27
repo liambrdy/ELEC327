@@ -28,6 +28,7 @@ typedef enum {
     SYSCALL_DISPLAY_FILL_CIRCLE_BG  = 17,
     SYSCALL_DISPLAY_DRAW_CIRCLE     = 18,
     SYSCALL_DISPLAY_DRAW_CHAR       = 19,
+    SYSCALL_DISPLAY_COMMIT          = 20,
 } syscall_id_t;
 
 /* Display dimensions in landscape mode */

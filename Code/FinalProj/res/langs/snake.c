@@ -78,9 +78,9 @@ void draw_cell(int pos, int color) {
     py = GRID_Y0 + pos_row(pos) * CELL;
     display_fill_rect(px, py, CELL, CELL, COLOR_BLACK);
     if (color == CELL_FOOD) {
-        display_fill_rect(px + 2, py + 2, 6, 6, COLOR_RED);
+        display_fill_circle(px + 5, py + 5, 4, COLOR_RED);
     } else if (color == CELL_SNAKE) {
-        display_fill_rect(px + 1, py + 1, 8, 8, COLOR_GREEN);
+        display_fill_circle(px + 5, py + 5, 4, COLOR_GREEN);
     }
 }
 
@@ -299,6 +299,7 @@ int main() {
                     grid[tail_pos] = CELL_EMPTY;
                     draw_cell(tail_pos, CELL_EMPTY);
                 }
+                display_commit();
             }
 
         } else if (game_state == STATE_OVER) {

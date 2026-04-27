@@ -74,6 +74,113 @@ void display_fill_rect(int x, int y, int w, int h, int color) {
             framebuf[row * DISPLAY_W + col] = c;
 }
 
+void display_draw_rect(int x, int y, int w, int h, int color) {
+    display_fill_rect(x,         y,         w, 1, color);
+    display_fill_rect(x,         y + h - 1, w, 1, color);
+    display_fill_rect(x,         y,         1, h, color);
+    display_fill_rect(x + w - 1, y,         1, h, color);
+}
+
+void display_draw_hline(int x, int y, int len, int color) {
+    display_fill_rect(x, y, len, 1, color);
+}
+
+void display_draw_vline(int x, int y, int len, int color) {
+    display_fill_rect(x, y, 1, len, color);
+}
+
+void display_draw_line(int x0, int y0, int x1, int y1, int color) {
+    uint32_t c = rgb565_to_u32(color);
+    int dx  =  (x1 > x0 ? x1 - x0 : x0 - x1);
+    int dy  = -(y1 > y0 ? y1 - y0 : y0 - y1);
+    int sx  = x0 < x1 ? 1 : -1;
+    int sy  = y0 < y1 ? 1 : -1;
+    int err = dx + dy;
+    while (1) {
+        if (x0 >= 0 && x0 < DISPLAY_W && y0 >= 0 && y0 < DISPLAY_H)
+            framebuf[y0 * DISPLAY_W + x0] = c;
+        if (x0 == x1 && y0 == y1) break;
+        int e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x0 += sx; }
+        if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+}
+
+void display_fill_circle(int cx, int cy, int r, int color) {
+    uint32_t c = rgb565_to_u32(color);
+    int r2 = r * r;
+    for (int dy = -r; dy <= r; dy++) {
+        int py = cy + dy;
+        if (py < 0 || py >= DISPLAY_H) continue;
+        for (int dx = -r; dx <= r; dx++) {
+            if (dx * dx + dy * dy > r2) continue;
+            int px = cx + dx;
+            if (px < 0 || px >= DISPLAY_W) continue;
+            framebuf[py * DISPLAY_W + px] = c;
+        }
+    }
+}
+
+void display_fill_circle_bg(int cx, int cy, int r, int color, int bg) {
+    uint32_t c32  = rgb565_to_u32(color);
+    uint32_t bg32 = rgb565_to_u32(bg);
+    int r2 = r * r;
+    int x0 = cx - r < 0          ? 0           : cx - r;
+    int y0 = cy - r < 0          ? 0           : cy - r;
+    int x1 = cx + r >= DISPLAY_W ? DISPLAY_W-1 : cx + r;
+    int y1 = cy + r >= DISPLAY_H ? DISPLAY_H-1 : cy + r;
+    for (int py = y0; py <= y1; py++) {
+        int dy = py - cy;
+        for (int px = x0; px <= x1; px++) {
+            int dx = px - cx;
+            framebuf[py * DISPLAY_W + px] = (dx*dx + dy*dy <= r2) ? c32 : bg32;
+        }
+    }
+}
+
+void display_draw_circle(int cx, int cy, int r, int color) {
+    uint32_t c = rgb565_to_u32(color);
+    int x = 0, y = r, d = 3 - 2 * r;
+    while (x <= y) {
+        int pts[8][2] = {
+            {cx+x, cy+y}, {cx-x, cy+y}, {cx+x, cy-y}, {cx-x, cy-y},
+            {cx+y, cy+x}, {cx-y, cy+x}, {cx+y, cy-x}, {cx-y, cy-x}
+        };
+        for (int i = 0; i < 8; i++) {
+            int px = pts[i][0], py = pts[i][1];
+            if (px >= 0 && px < DISPLAY_W && py >= 0 && py < DISPLAY_H)
+                framebuf[py * DISPLAY_W + px] = c;
+        }
+        x++;
+        if (d < 0) d += 4*x + 6;
+        else { y--; d += 4*(x - y) + 10; }
+    }
+}
+
+void display_draw_char(int x, int y, int ch, int fg, int bg) {
+    uint32_t fg32   = rgb565_to_u32(fg);
+    int      has_bg = (bg >= 0 && bg <= 0xFFFF);
+    uint32_t bg32   = has_bg ? rgb565_to_u32(bg) : 0;
+    unsigned char c = (unsigned char)(ch & 0xFF);
+    const unsigned char *glyph = (c >= 0x20 && c <= 0x7E) ? font5x7[c-0x20] : font5x7[0];
+    for (int row = 0; row < FONT_CHAR_H; row++) {
+        int py = y + row;
+        if (py < 0 || py >= DISPLAY_H) continue;
+        for (int col = 0; col < FONT_CHAR_W; col++) {
+            int px = x + col;
+            if (px < 0 || px >= DISPLAY_W) continue;
+            int on = (col < 5 && row < 7) && ((glyph[col] >> row) & 1);
+            if (on)         framebuf[py * DISPLAY_W + px] = fg32;
+            else if (has_bg) framebuf[py * DISPLAY_W + px] = bg32;
+        }
+    }
+}
+
+void display_commit(void) {
+    /* No-op in simulator: framebuf is always up-to-date.
+       Hardware equivalent: TFTWaitIdle(). */
+}
+
 void display_draw_bitmap(int x, int y, const int *pixels, int w, int h) {
     for (int row = 0; row < h; row++) {
         int dy = y + row;

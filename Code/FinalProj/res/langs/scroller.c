@@ -88,14 +88,13 @@ void draw_planets() {
         planet_y[i] = 30 + random() % (DISP_H - 60);
         planet_r[i] = 6 + random() % 8;
 
-        /* Draw filled square planet (no circle syscall yet) */
         int r = planet_r[i];
         int px = planet_x[i];
         int py = planet_y[i];
-        display_fill_rect(px - r, py - r, r * 2, r * 2, planet_col[i]);
+        display_fill_circle(px, py, r, planet_col[i]);
 
         /* Highlight dot (top-left quadrant) */
-        display_fill_rect(px - r / 2, py - r / 2, r / 2, r / 2, COLOR_WHITE);
+        display_fill_circle(px - r / 3, py - r / 3, r / 5 + 1, COLOR_WHITE);
     }
 }
 
@@ -131,6 +130,7 @@ int main() {
     draw_planets();
     draw_terrain();
 
+    display_commit();
     last_time = millis();
 
     while (1) {

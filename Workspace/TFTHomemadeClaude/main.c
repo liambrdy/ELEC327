@@ -235,6 +235,7 @@ int main(void) {
     InitializeGpio();
     InitializeTFT();
     tft_init_sequence();
+    TFTInitDMA();
     init_systick();
     buttons_init();
 

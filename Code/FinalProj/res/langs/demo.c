@@ -93,7 +93,7 @@ int main() {
     draw_stripes();
 
     for (i = 0; i < NUM_BALLS; i++) {
-        display_fill_rect(bx[i], by[i], BALL_SIZE, BALL_SIZE, pal[bcol[i]]);
+        display_fill_circle(bx[i] + 5, by[i] + 5, 5, pal[bcol[i]]);
     }
 
     fps        = 0;
@@ -169,7 +169,7 @@ int main() {
             }
 
             /* 1. Draw at new position — ball always visible from this point */
-            display_fill_rect(bx[i], by[i], BALL_SIZE, BALL_SIZE, pal[bcol[i]]);
+            display_fill_circle(bx[i] + 5, by[i] + 5, 5, pal[bcol[i]]);
 
             /* 2. Erase X-trailing strip (full ball height) */
             if (dx > 0) {
@@ -198,6 +198,7 @@ int main() {
         /* Advance rainbow by one slot per frame */
         stripe_offset = (stripe_offset + 1) % NUM_COLORS;
         draw_stripes();
+        display_commit();
 
         if (btns & BTN_A) break;
     }

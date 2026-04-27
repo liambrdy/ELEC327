@@ -58,6 +58,15 @@ void display_draw_circle(int cx, int cy, int r, int color);                     
 /* display_draw_char: draw a single character; bg = -1 for transparent. */
 void display_draw_char(int x, int y, int ch, int fg, int bg);                   /* id 19 */
 
+/*
+ * display_commit — wait for any in-flight DMA pixel transfer to complete.
+ * Call once per frame after all drawing is done to guarantee the display is
+ * fully updated before reading buttons or measuring time.  Not required for
+ * correctness (each draw call already serialises automatically), but useful
+ * for explicit frame-rate control.
+ */
+void display_commit();                                                           /* id 20 */
+
 /* Button bitmask bits returned by buttons_read() */
 #define BTN_UP    1
 #define BTN_DOWN  2

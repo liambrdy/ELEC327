@@ -184,7 +184,7 @@ void erase_paddle() {
 }
 
 void draw_ball() {
-    display_fill_rect(ball_x, ball_y, BALL_SIZE, BALL_SIZE, COLOR_WHITE);
+    display_fill_circle(ball_x + 4, ball_y + 4, 4, COLOR_WHITE);
 }
 
 void erase_ball() {
@@ -424,6 +424,7 @@ int main() {
                     hud_dirty = 0;
                 }
             }
+            display_commit();
 
         } else if (game_state == STATE_DEAD) {
             if (a_pressed) {

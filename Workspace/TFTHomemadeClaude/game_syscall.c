@@ -248,6 +248,11 @@ void game_syscall(vm_t *vm, u8 id) {
             TFTDrawCharEx((int16_t)x, (int16_t)y, ch, fg, bg);
         } break;
 
+        /* void display_commit() -------------------------------------------- */
+        case SYSCALL_DISPLAY_COMMIT: {
+            TFTWaitIdle();
+        } break;
+
         default:
             break;
     }

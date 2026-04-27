@@ -113,6 +113,78 @@ void sim_syscall(vm_t *vm, u8 id) {
             display_scroll_set(pos);
         } break;
 
+        case SYSCALL_DISPLAY_DRAW_RECT: {
+            int x = (int)vm->stack[vm->frame_base + 0];
+            int y = (int)vm->stack[vm->frame_base + 1];
+            int w = (int)vm->stack[vm->frame_base + 2];
+            int h = (int)vm->stack[vm->frame_base + 3];
+            int c = (int)vm->stack[vm->frame_base + 4];
+            display_draw_rect(x, y, w, h, c);
+        } break;
+
+        case SYSCALL_DISPLAY_DRAW_HLINE: {
+            int x = (int)vm->stack[vm->frame_base + 0];
+            int y = (int)vm->stack[vm->frame_base + 1];
+            int l = (int)vm->stack[vm->frame_base + 2];
+            int c = (int)vm->stack[vm->frame_base + 3];
+            display_draw_hline(x, y, l, c);
+        } break;
+
+        case SYSCALL_DISPLAY_DRAW_VLINE: {
+            int x = (int)vm->stack[vm->frame_base + 0];
+            int y = (int)vm->stack[vm->frame_base + 1];
+            int l = (int)vm->stack[vm->frame_base + 2];
+            int c = (int)vm->stack[vm->frame_base + 3];
+            display_draw_vline(x, y, l, c);
+        } break;
+
+        case SYSCALL_DISPLAY_DRAW_LINE: {
+            int x0 = (int)vm->stack[vm->frame_base + 0];
+            int y0 = (int)vm->stack[vm->frame_base + 1];
+            int x1 = (int)vm->stack[vm->frame_base + 2];
+            int y1 = (int)vm->stack[vm->frame_base + 3];
+            int c  = (int)vm->stack[vm->frame_base + 4];
+            display_draw_line(x0, y0, x1, y1, c);
+        } break;
+
+        case SYSCALL_DISPLAY_FILL_CIRCLE: {
+            int cx = (int)vm->stack[vm->frame_base + 0];
+            int cy = (int)vm->stack[vm->frame_base + 1];
+            int r  = (int)vm->stack[vm->frame_base + 2];
+            int c  = (int)vm->stack[vm->frame_base + 3];
+            display_fill_circle(cx, cy, r, c);
+        } break;
+
+        case SYSCALL_DISPLAY_FILL_CIRCLE_BG: {
+            int cx = (int)vm->stack[vm->frame_base + 0];
+            int cy = (int)vm->stack[vm->frame_base + 1];
+            int r  = (int)vm->stack[vm->frame_base + 2];
+            int c  = (int)vm->stack[vm->frame_base + 3];
+            int bg = (int)vm->stack[vm->frame_base + 4];
+            display_fill_circle_bg(cx, cy, r, c, bg);
+        } break;
+
+        case SYSCALL_DISPLAY_DRAW_CIRCLE: {
+            int cx = (int)vm->stack[vm->frame_base + 0];
+            int cy = (int)vm->stack[vm->frame_base + 1];
+            int r  = (int)vm->stack[vm->frame_base + 2];
+            int c  = (int)vm->stack[vm->frame_base + 3];
+            display_draw_circle(cx, cy, r, c);
+        } break;
+
+        case SYSCALL_DISPLAY_DRAW_CHAR: {
+            int x  = (int)vm->stack[vm->frame_base + 0];
+            int y  = (int)vm->stack[vm->frame_base + 1];
+            int ch = (int)vm->stack[vm->frame_base + 2];
+            int fg = (int)vm->stack[vm->frame_base + 3];
+            int bg = (int)vm->stack[vm->frame_base + 4];
+            display_draw_char(x, y, ch, fg, bg);
+        } break;
+
+        case SYSCALL_DISPLAY_COMMIT: {
+            display_commit();
+        } break;
+
         default:
             printf("sim: unknown syscall id %u\n", (unsigned)id);
             break;

@@ -7,6 +7,22 @@
 extern volatile bool spi_wakeup;
 
 void InitializeTFT(void);
+
+/*
+ * TFTInitDMA — call once after InitializeTFT + tft_init_sequence.
+ * Configures DMA channel 0 for SPI1 TX, enables the SPI1 ISR, and
+ * initialises the strip-buffer state.  Requires NVIC not yet in use for SPI1.
+ */
+void TFTInitDMA(void);
+
+/*
+ * TFTWaitIdle — block until any in-flight DMA pixel transfer is complete,
+ * drain the RX FIFO, and deassert CS if it was held low by an async transfer.
+ * Call before any non-pixel SPI operation if you need guaranteed ordering,
+ * or use display_commit() from game code.
+ */
+void TFTWaitIdle(void);
+
 bool SPITransferAsync(uint8_t *tx, uint8_t *rx, uint32_t len);
 void SPIWaitDone();
 void SPISetCDMode(uint8_t mode);

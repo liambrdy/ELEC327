@@ -127,6 +127,7 @@ int main() {
 
                     show_grid();
                     generate_bombs();
+                    display_commit();
                 }
             } break;
 
