@@ -74,7 +74,7 @@ static void tft_init_sequence(void) {
     p[0]=0x86;
     TFTWriteCommand(0xC7, p, 1);
 
-    p[0] = 0x28; /* MADCTL: MV=1 landscape, BGR=1 */
+    p[0] = 0xE8; /* MADCTL: MY=1 MX=1 MV=1 BGR=1 — landscape, flipped 180° */
     TFTWriteCommand(0x36, p, 1);
 
     p[0]=0x00;
@@ -114,12 +114,12 @@ static void InitializeGpio(void) {
                             GPIO_PWREN_ENABLE_ENABLE);
     delay_cycles(POWER_STARTUP_DELAY);
 
-    GPIOB->GPRCM.RSTCTL = (GPIO_RSTCTL_KEY_UNLOCK_W |
-                            GPIO_RSTCTL_RESETSTKYCLR_CLR |
-                            GPIO_RSTCTL_RESETASSERT_ASSERT);
-    GPIOB->GPRCM.PWREN  = (GPIO_PWREN_KEY_UNLOCK_W |
-                            GPIO_PWREN_ENABLE_ENABLE);
-    delay_cycles(POWER_STARTUP_DELAY);
+    // GPIOB->GPRCM.RSTCTL = (GPIO_RSTCTL_KEY_UNLOCK_W |
+    //                         GPIO_RSTCTL_RESETSTKYCLR_CLR |
+    //                         GPIO_RSTCTL_RESETASSERT_ASSERT);
+    // GPIOB->GPRCM.PWREN  = (GPIO_PWREN_KEY_UNLOCK_W |
+    //                         GPIO_PWREN_ENABLE_ENABLE);
+    // delay_cycles(POWER_STARTUP_DELAY);
 }
 
 /* ---- Launcher constants ---- */
@@ -218,7 +218,7 @@ static void wait_for_sd(void) {
         }
 
         if (!fat32_init()) {
-            show_message("FAT32 error.", "Format SD as FAT32.", COLOR_RED);
+            show_message("FAT32 error.", fat32_err ? fat32_err : "unknown", COLOR_RED);
             while (sd_card_present()) {}
             continue;
         }
@@ -238,6 +238,10 @@ int main(void) {
     TFTInitDMA();
     init_systick();
     buttons_init();
+
+#ifndef DEBUG_ROM
+    sd_cd_init(); /* must precede any sd_card_present() call */
+#endif
 
 #ifdef DEBUG_ROM
     /* Debug mode: bake rom_data.h into the flash slot and run from there.

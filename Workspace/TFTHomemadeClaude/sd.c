@@ -82,12 +82,13 @@ bool sd_card_present(void) {
 #endif
 }
 
-bool sd_init(void) {
-    /* Configure CD pin as GPIO input with pull-up so it reads HIGH when empty. */
+void sd_cd_init(void) {
     IOMUX->SECCFG.PINCM[SD_CD_PINCM] =
         IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM_INENA_ENABLE |
         IOMUX_PINCM_PIPU_ENABLE  | SD_CD_PF;
+}
 
+bool sd_init(void) {
     /* Configure SD CS pin as GPIO output, start deasserted (high). */
     IOMUX->SECCFG.PINCM[SD_CS_PINCM] = IOMUX_PINCM_PC_CONNECTED | SD_CS_PF;
     SD_CS_PORT->DOESET31_0  = SD_CS_PIN;
@@ -137,7 +138,7 @@ bool sd_init(void) {
         sd_cs_high();
         spi_byte(0xFF);
         if (r == 0x00) break;
-        delay_cycles(320); /* ~10 µs between retries */
+        delay_cycles(16000); /* ~0.5 ms between retries (2000 × 0.5 ms = 1 s total per SD spec) */
     }
     if (r != 0x00) goto fail;
 
@@ -146,7 +147,7 @@ bool sd_init(void) {
     if (r == 0x00) {
         uint8_t ocr0 = spi_byte(0xFF);
         spi_byte(0xFF); spi_byte(0xFF); spi_byte(0xFF);
-        if (ocr0 & 0x40) _hc = 1; /* CCS bit set → SDHC */
+        _hc = (ocr0 & 0x40) ? 1 : 0; /* CCS=1 → SDHC/SDXC block-addr; CCS=0 → SDSC byte-addr */
     }
     sd_cs_high();
     spi_byte(0xFF);
@@ -169,20 +170,27 @@ fail:
     return false;
 }
 
+uint8_t sd_last_r1;   /* R1 from last CMD17; 0xFF = data-token timeout */
+
 bool sd_read_block(uint32_t block, uint8_t *buf) {
     /* SDHC uses block addresses; SDv1 uses byte addresses. */
     uint32_t addr = _hc ? block : block * 512u;
 
     uint8_t r = sd_cmd(17, addr, 0x01); /* CMD17: READ_SINGLE_BLOCK */
+    sd_last_r1 = r;
     if (r != 0x00) { sd_cs_high(); spi_byte(0xFF); return false; }
 
-    /* Wait for the data start token 0xFE (can take up to ~200 ms). */
+    /* Wait for data start token 0xFE.  SD spec allows up to ~200 ms;
+       at 16 MHz each spi_byte = 500 ns → 400000 iterations ≈ 200 ms. */
     uint8_t tok = 0xFF;
-    for (int i = 0; i < 4000; i++) {
+    for (int i = 0; i < 400000; i++) {
         tok = spi_byte(0xFF);
         if (tok != 0xFF) break;
     }
-    if (tok != 0xFE) { sd_cs_high(); spi_byte(0xFF); return false; }
+    if (tok != 0xFE) {
+        sd_last_r1 = 0xFF; /* sentinel: token timeout */
+        sd_cs_high(); spi_byte(0xFF); return false;
+    }
 
     /* Read 512 data bytes then 2 CRC bytes (discarded). */
     for (int i = 0; i < 512; i++) buf[i] = spi_byte(0xFF);
@@ -190,6 +198,6 @@ bool sd_read_block(uint32_t block, uint8_t *buf) {
     spi_byte(0xFF); /* CRC low  */
 
     sd_cs_high();
-    spi_byte(0xFF);
+    spi_byte(0xFF); spi_byte(0xFF); spi_byte(0xFF); /* 24 clock recovery after read */
     return true;
 }

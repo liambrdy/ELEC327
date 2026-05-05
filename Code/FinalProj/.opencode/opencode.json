@@ -1,0 +1,8 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": {
+    "external_directory": {
+      "~/school/elec327/ELEC327/Workspace/TFTHomemadeClaude": "allow"
+    }
+  }
+}

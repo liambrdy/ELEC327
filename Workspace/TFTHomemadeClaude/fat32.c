@@ -26,6 +26,9 @@ static uint32_t u32le(int off) {
          | ((uint32_t)sec_buf[off+3] << 24);
 }
 
+/* ---- Diagnostics ------------------------------------------------------- */
+const char *fat32_err;
+
 /* ---- Cached volume geometry -------------------------------------------- */
 
 static uint32_t part_start;      /* LBA of the partition / volume boot sector */
@@ -53,35 +56,72 @@ static uint32_t fat_next(uint32_t c) {
 /* ---- Public: fat32_init ------------------------------------------------- */
 
 bool fat32_init(void) {
-    if (!read_sec(0)) return false;
+    fat32_err = NULL;
+
+    if (!read_sec(0)) { fat32_err = "sec0 read fail"; return false; }
 
     /* Signature check */
-    if (sec_buf[510] != 0x55 || sec_buf[511] != 0xAA) return false;
+    if (sec_buf[510] != 0x55 || sec_buf[511] != 0xAA) {
+        fat32_err = "no 55AA sig";
+        return false;
+    }
 
     /* Decide: direct FAT32 volume (no MBR) or MBR-partitioned? */
     if (sec_buf[82] == 'F' && sec_buf[83] == 'A' && sec_buf[84] == 'T') {
         /* Sector 0 is already the FAT32 boot sector. */
         part_start = 0;
     } else {
-        /* Look at the first valid FAT partition entry in the MBR. */
+        /* Scan all four MBR partition entries; accept the first one whose
+           sector we can read AND whose boot signature is 0x55/0xAA. */
         part_start = 0;
-        for (int p = 0; p < 4; p++) {
-            int  off  = 446 + p * 16;
-            uint8_t type = sec_buf[off + 4];
-            if (type == 0x0B || type == 0x0C || type == 0x0E) {
-                uint32_t lba = u32le(off + 8);
-                if (lba > 0) { part_start = lba; break; }
+        {
+            /* Save the MBR sector in a local copy so read_sec calls below
+               don't overwrite it (read_sec reuses sec_buf). */
+            uint8_t mbr[512];
+            for (int _i = 0; _i < 512; _i++) mbr[_i] = sec_buf[_i];
+
+            for (int p = 0; p < 4 && part_start == 0; p++) {
+                int off = 446 + p * 16;
+                uint8_t type = mbr[off + 4];
+                if (type != 0x0B && type != 0x0C && type != 0x0E &&
+                    type != 0x04 && type != 0x06) continue;
+                uint32_t lba = (uint32_t)mbr[off+8]
+                             | ((uint32_t)mbr[off+9]  <<  8)
+                             | ((uint32_t)mbr[off+10] << 16)
+                             | ((uint32_t)mbr[off+11] << 24);
+                if (lba == 0) continue;
+                if (!read_sec(lba)) continue;          /* unreadable — try next */
+                part_start = lba;                      /* found partition; BPB validated below */
             }
         }
-        if (part_start == 0) return false;
-
-        if (!read_sec(part_start)) return false;
-        if (sec_buf[510] != 0x55 || sec_buf[511] != 0xAA) return false;
+        if (part_start == 0) {
+            /* Show all 4 partition type bytes so we can see what's actually there.
+               e.g. "pt:07 00 00 00" means exFAT — reformat as FAT32. */
+            static char pt_msg[20];
+            const char *hex = "0123456789ABCDEF";
+            uint8_t t[4];
+            /* sec_buf still holds the MBR (last read_sec was either sector 0 or
+               a failed candidate; if candidates were tried, sec_buf may have changed,
+               so reload — but mbr[] is out of scope. Use the known offsets from
+               sec_buf if no read_sec was called, otherwise just report 00s.
+               Simplest: re-read sector 0. */
+            read_sec(0);
+            t[0] = sec_buf[446+4]; t[1] = sec_buf[462+4];
+            t[2] = sec_buf[478+4]; t[3] = sec_buf[494+4];
+            pt_msg[0]='p'; pt_msg[1]='t'; pt_msg[2]=':';
+            for (int _i = 0; _i < 4; _i++) {
+                pt_msg[3 + _i*3 + 0] = hex[t[_i] >> 4];
+                pt_msg[3 + _i*3 + 1] = hex[t[_i] & 0xF];
+                pt_msg[3 + _i*3 + 2] = (_i < 3) ? ' ' : '\0';
+            }
+            fat32_err = pt_msg;
+            return false;
+        }
     }
 
     /* Parse the BPB fields we need. */
     uint16_t bytes_per_sec = u16le(11);
-    if (bytes_per_sec != 512) return false; /* only 512-byte sectors supported */
+    if (bytes_per_sec != 512) { fat32_err = "bps!=512"; return false; }
 
     secs_per_clust      = sec_buf[13];
     uint16_t reserved   = u16le(14);
@@ -92,7 +132,11 @@ bool fat32_init(void) {
     fat_start  = part_start + reserved;
     data_start = fat_start + (uint32_t)num_fats * fat_size;
 
-    return (secs_per_clust > 0 && root_clust >= 2);
+    if (!(secs_per_clust > 0 && root_clust >= 2)) {
+        fat32_err = "bad BPB vals";
+        return false;
+    }
+    return true;
 }
 
 /* ---- Directory helpers -------------------------------------------------- */

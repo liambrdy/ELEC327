@@ -16,6 +16,7 @@ void buttons_init(void) {
     CFG_INPUT(BTN_LEFT_PINCM,  BTN_LEFT_PF);
     CFG_INPUT(BTN_RIGHT_PINCM, BTN_RIGHT_PF);
     CFG_INPUT(BTN_A_PINCM,     BTN_A_PF);
+    CFG_INPUT(BTN_B_PINCM,     BTN_B_PF);
 }
 
 /*
@@ -32,6 +33,7 @@ uint32_t hw_buttons_read(void) {
     if (!(BTN_LEFT_PORT->DIN31_0  & (1u << BTN_LEFT_DIO)))  result |= BTN_MASK_LEFT;
     if (!(BTN_RIGHT_PORT->DIN31_0 & (1u << BTN_RIGHT_DIO))) result |= BTN_MASK_RIGHT;
     if (!(BTN_A_PORT->DIN31_0     & (1u << BTN_A_DIO)))     result |= BTN_MASK_A;
+    if (!(BTN_B_PORT->DIN31_0     & (1u << BTN_V_DIO)))     result |= BTN_MASK_B;
 
     return result;
 }

@@ -12,22 +12,22 @@
 volatile bool spi_wakeup;
 
 /* ---- Pin definitions ---- */
-#define DC_PIN  (1UL << 1)   /* PB1  = D/C */
-#define RST_PIN (1UL << 16)  /* PB16 = RST */
-#define CS_PIN  (1UL << 6)   /* PB6  = CS  */
+#define DC_PIN  (1UL << 26)   /* PA26  = D/C */
+#define RST_PIN (1UL << 27)  /* PA27 = RST */
+#define CS_PIN  (1UL << 3)   /* PA3  = CS  */
 
 /* ---- DMA strip-buffer state -------------------------------------------- *
  *
  * Pixel data is accumulated in one of two 2560-byte strips (4 rows × 320 px ×
  * 2 bytes).  When a strip is full (or the pixel burst ends), it is handed to
- * DMA channel 0 → SPI1 TXDATA.  While DMA sends the previous strip the CPU
+ * DMA channel 0 → SPI0 TXDATA.  While DMA sends the previous strip the CPU
  * fills the next one — double-buffered overlap.
  *
  * After the LAST strip is kicked, the drawing function returns immediately
  * (cs_held=true, CS still low).  The next drawing call or display_commit()
  * will call TFTWaitIdle, which blocks until TX_EMPTY, drains RX, and raises CS.
  */
-#define DMA_CH_SPI1_TX   0u
+#define DMA_CH_SPI0_TX   0u
 #define STRIP_BYTES      (4u * 320u * 2u)   /* 2560 bytes */
 
 static uint8_t  strip[2][STRIP_BYTES];
@@ -39,27 +39,27 @@ static bool          cs_held;  /* CS is asserted low; raise on TFTWaitIdle */
 
 /* ---- SPI helpers ---- */
 
-static void DCHigh(void) { GPIOB->DOUTSET31_0 = DC_PIN; }
-static void DCLow(void)  { GPIOB->DOUTCLR31_0 = DC_PIN; }
-static void CSLow(void)  { GPIOB->DOUTCLR31_0 = CS_PIN; }
-static void CSHigh(void) { GPIOB->DOUTSET31_0 = CS_PIN; }
+static void DCHigh(void) { GPIOA->DOUTSET31_0 = DC_PIN; }
+static void DCLow(void)  { GPIOA->DOUTCLR31_0 = DC_PIN; }
+static void CSLow(void)  { GPIOA->DOUTCLR31_0 = CS_PIN; }
+static void CSHigh(void) { GPIOA->DOUTSET31_0 = CS_PIN; }
 
 /* Synchronous byte TX+RX — used for commands and short data. */
 static void spi_txrx(uint8_t byte) {
-    while (!(SPI1->STAT & SPI_STAT_TNF_MASK)) {}
-    SPI1->TXDATA = byte;
-    while (SPI1->STAT & SPI_STAT_RFE_MASK) {}
-    volatile uint32_t dummy = SPI1->RXDATA;
+    while (!(SPI0->STAT & SPI_STAT_TNF_MASK)) {}
+    SPI0->TXDATA = byte;
+    while (SPI0->STAT & SPI_STAT_RFE_MASK) {}
+    volatile uint32_t dummy = SPI0->RXDATA;
 }
 
 static void spi_drain_rx(void) {
-    while (!(SPI1->STAT & SPI_STAT_RFE_MASK)) {
-        volatile uint32_t _ = SPI1->RXDATA;
+    while (!(SPI0->STAT & SPI_STAT_RFE_MASK)) {
+        volatile uint32_t _ = SPI0->RXDATA;
     }
 }
 
 static void spi_flush(void) {
-    while (SPI1->STAT & SPI_STAT_BUSY_MASK) {}
+    while (SPI0->STAT & SPI_STAT_BUSY_MASK) {}
     spi_drain_rx();
 }
 
@@ -68,10 +68,10 @@ static void SPISendBlocking(const uint8_t *tx, uint32_t len) {
         spi_txrx(tx[i]);
 }
 
-/* ---- SPI1 DMA ISR ---- */
+/* ---- SPI0 DMA ISR ---- */
 
-void SPI1_IRQHandler(void) {
-    switch (DL_SPI_getPendingInterrupt(SPI1)) {
+void SPI0_IRQHandler(void) {
+    switch (DL_SPI_getPendingInterrupt(SPI0)) {
         case DL_SPI_IIDX_DMA_DONE_TX:
             /* DMA has loaded all bytes into the TX FIFO.
                Wait for TX_EMPTY before clearing dma_busy. */
@@ -92,7 +92,7 @@ void SPI1_IRQHandler(void) {
 void TFTWaitIdle(void) {
     while (dma_busy) {}
     spi_drain_rx();
-    while (SPI1->STAT & SPI_STAT_BUSY_MASK) {}
+    while (SPI0->STAT & SPI_STAT_BUSY_MASK) {}
     if (cs_held) {
         CSHigh();
         cs_held = false;
@@ -102,61 +102,62 @@ void TFTWaitIdle(void) {
 /* ---- Internal: flush active strip, swap, wait for prev DMA, kick new ---- */
 
 static void tft_flush_strip(void) {
-    uint32_t n       = fill_pos;
-    uint8_t  to_send = active;
-    active   ^= 1u;
-    fill_pos  = 0;
-    while (dma_busy) {}          /* wait for the previous DMA to finish */
-    if (n == 0) return;
-    dma_busy = true;
-    DL_DMA_setSrcAddr(DMA, DMA_CH_SPI1_TX, (uint32_t)strip[to_send]);
-    DL_DMA_setTransferSize(DMA, DMA_CH_SPI1_TX, n);
-    DL_DMA_enableChannel(DMA, DMA_CH_SPI1_TX);
+	uint32_t n = fill_pos;
+	uint8_t to_send = active;
+	active ^= 1u;
+	fill_pos = 0;
+	while (dma_busy) {} /* wait for the previous DMA to finish */
+	while (SPI0->STAT & SPI_STAT_BUSY_MASK) {} /* wait for SPI shift register to finish */
+	if (n == 0) return;
+	dma_busy = true;
+	DL_DMA_setSrcAddr(DMA, DMA_CH_SPI0_TX, (uint32_t)strip[to_send]);
+	DL_DMA_setTransferSize(DMA, DMA_CH_SPI0_TX, n);
+	DL_DMA_enableChannel(DMA, DMA_CH_SPI0_TX);
 }
 
 /* ---- InitializeTFT ---- */
 
 void InitializeTFT(void) {
-    IOMUX->SECCFG.PINCM[(IOMUX_PINCM26)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM26_PF_SPI1_SCLK;
-    IOMUX->SECCFG.PINCM[(IOMUX_PINCM24)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM24_PF_SPI1_POCI;
-    IOMUX->SECCFG.PINCM[(IOMUX_PINCM25)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM25_PF_SPI1_PICO;
+    IOMUX->SECCFG.PINCM[(IOMUX_PINCM11)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM11_PF_SPI0_SCLK; // PA6
+    IOMUX->SECCFG.PINCM[(IOMUX_PINCM9)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM_INENA_ENABLE | IOMUX_PINCM9_PF_SPI0_POCI; // PA4
+    IOMUX->SECCFG.PINCM[(IOMUX_PINCM10)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM10_PF_SPI0_PICO; // PA5
 
-    IOMUX->SECCFG.PINCM[(IOMUX_PINCM23)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM23_PF_GPIOB_DIO06;
-    IOMUX->SECCFG.PINCM[(IOMUX_PINCM13)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM13_PF_GPIOB_DIO01;
-    IOMUX->SECCFG.PINCM[(IOMUX_PINCM33)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM33_PF_GPIOB_DIO16;
+    IOMUX->SECCFG.PINCM[(IOMUX_PINCM8)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM8_PF_GPIOA_DIO03;
+    IOMUX->SECCFG.PINCM[(IOMUX_PINCM59)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM59_PF_GPIOA_DIO26;
+    IOMUX->SECCFG.PINCM[(IOMUX_PINCM60)] = IOMUX_PINCM_PC_CONNECTED | IOMUX_PINCM60_PF_GPIOA_DIO27;
 
-    GPIOB->DOESET31_0  = CS_PIN | DC_PIN | RST_PIN;
-    GPIOB->DOUTSET31_0 = CS_PIN | DC_PIN | RST_PIN;
+    GPIOA->DOESET31_0  = CS_PIN | DC_PIN | RST_PIN;
+    GPIOA->DOUTSET31_0 = CS_PIN | DC_PIN | RST_PIN;
 
-    SPI1->GPRCM.RSTCTL = (SPI_RSTCTL_KEY_UNLOCK_W | SPI_RSTCTL_RESETSTKYCLR_CLR | SPI_RSTCTL_RESETASSERT_ASSERT);
-    SPI1->GPRCM.PWREN  = (SPI_PWREN_KEY_UNLOCK_W | SPI_PWREN_ENABLE_ENABLE);
+    SPI0->GPRCM.RSTCTL = (SPI_RSTCTL_KEY_UNLOCK_W | SPI_RSTCTL_RESETSTKYCLR_CLR | SPI_RSTCTL_RESETASSERT_ASSERT);
+    SPI0->GPRCM.PWREN  = (SPI_PWREN_KEY_UNLOCK_W | SPI_PWREN_ENABLE_ENABLE);
     delay_cycles(POWER_STARTUP_DELAY);
 
-    SPI1->CLKSEL = (uint32_t)SPI_CLKSEL_SYSCLK_SEL_ENABLE;
-    SPI1->CLKDIV = (uint32_t)SPI_CLKDIV_RATIO_DIV_BY_1;
+    SPI0->CLKSEL = (uint32_t)SPI_CLKSEL_SYSCLK_SEL_ENABLE;
+    SPI0->CLKDIV = (uint32_t)SPI_CLKDIV_RATIO_DIV_BY_1;
 
-    SPI1->CTL0 = SPI_CTL0_SPO_LOW         |
+    SPI0->CTL0 = SPI_CTL0_SPO_LOW         |
                  SPI_CTL0_SPH_FIRST        |
                  SPI_CTL0_PACKEN_DISABLED  |
                  SPI_CTL0_CSCLR_DISABLE    |
                  SPI_CTL0_FRF_MOTOROLA_4WIRE |
                  SPI_CTL0_DSS_DSS_8;
 
-    SPI1->CTL1 = SPI_CTL1_CP_ENABLE   |
+    SPI0->CTL1 = SPI_CTL1_CP_ENABLE   |
                  SPI_CTL1_PREN_DISABLE |
                  SPI_CTL1_PTEN_DISABLE |
                  SPI_CTL1_PES_DISABLE  |
                  SPI_CTL1_MSB_ENABLE;
 
-    SPI1->CLKCTL = 0; /* SCR=0 → 16 MHz */
+    SPI0->CLKCTL = 0; /* SCR=0 → 16 MHz */
 
-    SPI1->CTL1 |= SPI_CTL1_ENABLE_ENABLE;
+    SPI0->CTL1 |= SPI_CTL1_ENABLE_ENABLE;
 
-    GPIOB->DOUTSET31_0 = RST_PIN;
+    GPIOA->DOUTSET31_0 = RST_PIN;
     delay_cycles(10 * 32000);
-    GPIOB->DOUTCLR31_0 = RST_PIN;
+    GPIOA->DOUTCLR31_0 = RST_PIN;
     delay_cycles(20 * 32000);
-    GPIOB->DOUTSET31_0 = RST_PIN;
+    GPIOA->DOUTSET31_0 = RST_PIN;
     delay_cycles(150 * 32000);
 }
 
@@ -170,19 +171,19 @@ void TFTInitDMA(void) {
         .srcIncrement  = DL_DMA_ADDR_INCREMENT,
         .destWidth     = DL_DMA_WIDTH_BYTE,
         .srcWidth      = DL_DMA_WIDTH_BYTE,
-        .trigger       = DMA_SPI1_TX_TRIG,
+        .trigger       = DMA_SPI0_TX_TRIG,
         .triggerType   = DL_DMA_TRIGGER_TYPE_EXTERNAL,
     };
-    DL_DMA_initChannel(DMA, DMA_CH_SPI1_TX, (DL_DMA_Config *)&cfg);
-    DL_DMA_setDestAddr(DMA, DMA_CH_SPI1_TX, (uint32_t)(&SPI1->TXDATA));
+    DL_DMA_initChannel(DMA, DMA_CH_SPI0_TX, (DL_DMA_Config *)&cfg);
+    DL_DMA_setDestAddr(DMA, DMA_CH_SPI0_TX, (uint32_t)(&SPI0->TXDATA));
 
-    DL_SPI_enableDMATransmitEvent(SPI1);
-    DL_SPI_setFIFOThreshold(SPI1,
+    DL_SPI_enableDMATransmitEvent(SPI0);
+    DL_SPI_setFIFOThreshold(SPI0,
         DL_SPI_RX_FIFO_LEVEL_ONE_FRAME,
         DL_SPI_TX_FIFO_LEVEL_ONE_FRAME);
-    DL_SPI_enableInterrupt(SPI1,
+    DL_SPI_enableInterrupt(SPI0,
         DL_SPI_INTERRUPT_DMA_DONE_TX | DL_SPI_INTERRUPT_TX_EMPTY);
-    NVIC_EnableIRQ(SPI1_INT_IRQn);
+    NVIC_EnableIRQ(SPI0_INT_IRQn);
 
     active   = 0;
     fill_pos = 0;
@@ -223,10 +224,10 @@ void TFTReadCommand(uint8_t cmd, uint8_t *out, uint16_t len) {
     spi_txrx(cmd);
     DCHigh();
     for (uint16_t i = 0; i < len; i++) {
-        while (!(SPI1->STAT & SPI_STAT_TNF_MASK)) {}
-        SPI1->TXDATA = 0x00;
-        while (SPI1->STAT & SPI_STAT_RFE_MASK) {}
-        out[i] = (uint8_t)(SPI1->RXDATA & 0xFF);
+        while (!(SPI0->STAT & SPI_STAT_TNF_MASK)) {}
+        SPI0->TXDATA = 0x00;
+        while (SPI0->STAT & SPI_STAT_RFE_MASK) {}
+        out[i] = (uint8_t)(SPI0->RXDATA & 0xFF);
     }
     CSHigh();
 }
@@ -325,8 +326,8 @@ void TFTScrollSet(uint16_t pos) {
 /* ---- Legacy async API (kept for compatibility; currently blocking) ---- */
 
 void SPISetCDMode(uint8_t mode) {
-    SPI1->CTL1 &= ~SPI_CTL1_CDMODE_MASK;
-    SPI1->CTL1 |= (mode << SPI_CTL1_CDMODE_OFS);
+    SPI0->CTL1 &= ~SPI_CTL1_CDMODE_MASK;
+    SPI0->CTL1 |= (mode << SPI_CTL1_CDMODE_OFS);
 }
 
 void SPIWaitDone(void) {
@@ -338,10 +339,10 @@ bool SPITransferAsync(uint8_t *tx, uint8_t *rx, uint32_t len) {
     TFTWaitIdle();
     spi_wakeup = false;
     for (uint32_t i = 0; i < len; i++) {
-        while (!(SPI1->STAT & SPI_STAT_TNF_MASK)) {}
-        SPI1->TXDATA = tx ? tx[i] : 0x00;
-        while (SPI1->STAT & SPI_STAT_RFE_MASK) {}
-        uint8_t r = (uint8_t)(SPI1->RXDATA & 0xFF);
+        while (!(SPI0->STAT & SPI_STAT_TNF_MASK)) {}
+        SPI0->TXDATA = tx ? tx[i] : 0x00;
+        while (SPI0->STAT & SPI_STAT_RFE_MASK) {}
+        uint8_t r = (uint8_t)(SPI0->RXDATA & 0xFF);
         if (rx) rx[i] = r;
     }
     spi_wakeup = true;

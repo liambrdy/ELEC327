@@ -16,9 +16,12 @@ typedef struct {
 /*
  * Parse the MBR (or direct BPB) and cache the FAT32 volume layout.
  * Must be called after sd_init() succeeds.
- * Returns true on success.
+ * Returns true on success; on failure fat32_err points to a short diagnostic.
  */
 bool fat32_init(void);
+
+/* Set to a short error string on failure, NULL on success. */
+extern const char *fat32_err;
 
 /*
  * Scan the root directory for files whose 8.3 extension matches ext
