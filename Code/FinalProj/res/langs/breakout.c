@@ -188,9 +188,8 @@ void draw_ball() {
 }
 
 void erase_ball() {
-    display_fill_rect(old_ball_x, old_ball_y, BALL_SIZE, BALL_SIZE, COLOR_BLACK);
-    /* Restore any brick pixels that were covered by the ball's old position */
-    repair_bricks(old_ball_x, old_ball_y, BALL_SIZE, BALL_SIZE);
+    display_fill_rect(old_ball_x, old_ball_y, BALL_SIZE + 1, BALL_SIZE + 1, COLOR_BLACK);
+    repair_bricks(old_ball_x, old_ball_y, BALL_SIZE + 1, BALL_SIZE + 1);
 }
 
 void draw_play_screen() {
