@@ -46,9 +46,6 @@ void TFTDrawLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color)
     }
 }
 
-// Filled circle: streams the entire bounding box in one CS transaction.
-// Pixels inside the circle get 'color', corners get 'bg' (usually COLOR_BLACK).
-// One CS assertion for the whole shape — no per-row toggling, no stripe artifacts.
 void TFTFillCircleBG(int16_t cx, int16_t cy, int16_t r, uint16_t color, uint16_t bg) {
     int16_t x0 = cx - r, y0 = cy - r;
     int16_t x1 = cx + r, y1 = cy + r;
@@ -73,9 +70,7 @@ void TFTFillCircle(int16_t cx, int16_t cy, int16_t r, uint16_t color) {
     TFTFillCircleBG(cx, cy, r, color, COLOR_BLACK);
 }
 
-/* ---- Text drawing ------------------------------------------------------ */
-
-/* Row-by-row char render; bg < 0 = transparent (only fg pixels are written). */
+/* bg < 0 = transparent (only fg pixels written) */
 void TFTDrawCharEx(int16_t x, int16_t y, uint8_t ch, uint16_t fg, int bg) {
     if (ch < 0x20 || ch > 0x7E) ch = (uint8_t)'?';
     const unsigned char *g = font5x7[ch - 0x20];
@@ -144,7 +139,7 @@ void TFTDrawInt(int16_t x, int16_t y, int32_t n, uint16_t fg, uint16_t bg) {
     TFTDrawIntEx(x, y, n, fg, (int)bg);
 }
 
-// Circle outline using Bresenham midpoint algorithm
+/* Bresenham midpoint circle */
 void TFTDrawCircle(int16_t cx, int16_t cy, int16_t r, uint16_t color) {
     int16_t x = 0, y = r, d = 3 - 2 * r;
     while (x <= y) {

@@ -1,23 +1,5 @@
 
-/*
- * Game console firmware — SD card launcher.
- *
- * Boot sequence (normal):
- *   1. Init TFT, SysTick, buttons.
- *   2. Init SD card and mount FAT32.
- *   3. Scan root directory for *.ROM files (up to MAX_GAMES).
- *   4. Show a scrollable game-selection menu.
- *   5. On A press: stream ROM from SD into flash slot, run the VM.
- *   6. When the game returns, go back to step 3.
- *
- * Debug mode (no SD card needed):
- *   Uncomment #define DEBUG_ROM below.  The firmware will skip SD init and
- *   run the ROM baked into rom_data.h directly from flash on every boot.
- *   Regenerate rom_data.h with:
- *     ./gen_rom.sh game.c -H Workspace/TFTHomemadeClaude/rom_data.h
- */
-
-#define DEBUG_ROM /* uncomment to skip SD and run built-in rom_data.h */
+#define DEBUG_ROM
 
 #include <ti/devices/msp/msp.h>
 #include "tft.h"
@@ -36,10 +18,8 @@
 #include "flash_rom.h"
 #endif
 
-/* ---- TFT initialisation sequence (ILI9341) ---- */
-
 static void tft_init_sequence(void) {
-    TFTWriteCommand(0x01, NULL, 0);           /* software reset */
+    TFTWriteCommand(0x01, NULL, 0);  /* software reset */
     delay_cycles(32000 * 150);
 
     uint8_t p[15];
@@ -74,13 +54,13 @@ static void tft_init_sequence(void) {
     p[0]=0x86;
     TFTWriteCommand(0xC7, p, 1);
 
-    p[0] = 0xE8; /* MADCTL: MY=1 MX=1 MV=1 BGR=1 — landscape, flipped 180° */
+    p[0] = 0xE8;  /* MADCTL: landscape, flipped 180° */
     TFTWriteCommand(0x36, p, 1);
 
     p[0]=0x00;
     TFTWriteCommand(0x37, p, 1);
     p[0]=0x55;
-    TFTWriteCommand(0x3A, p, 1);   /* pixel format: RGB565 */
+    TFTWriteCommand(0x3A, p, 1);  /* pixel format: RGB565 */
     p[0]=0x00; p[1]=0x18;
     TFTWriteCommand(0xB1, p, 2);
     p[0]=0x08; p[1]=0x82; p[2]=0x27;
@@ -90,21 +70,17 @@ static void tft_init_sequence(void) {
     p[0]=0x01;
     TFTWriteCommand(0x26, p, 1);
 
-    TFTWriteCommand(0x11, NULL, 0); /* sleep out */
+    TFTWriteCommand(0x11, NULL, 0);  /* sleep out */
     delay_cycles(32000 * 120);
-    TFTWriteCommand(0x29, NULL, 0); /* display on */
+    TFTWriteCommand(0x29, NULL, 0);  /* display on */
     delay_cycles(32000 * 20);
 }
 
-/* ---- SysTick: 1 ms tick at 32 MHz ---- */
-
 static void init_systick(void) {
-    SysTick->LOAD = 32000 - 1;
+    SysTick->LOAD = 32000 - 1;  /* 1 ms at 32 MHz */
     SysTick->VAL  = 0;
     SysTick->CTRL = 7u;
 }
-
-/* ---- GPIO power-up ---- */
 
 static void InitializeGpio(void) {
     GPIOA->GPRCM.RSTCTL = (GPIO_RSTCTL_KEY_UNLOCK_W |
@@ -113,46 +89,33 @@ static void InitializeGpio(void) {
     GPIOA->GPRCM.PWREN  = (GPIO_PWREN_KEY_UNLOCK_W |
                             GPIO_PWREN_ENABLE_ENABLE);
     delay_cycles(POWER_STARTUP_DELAY);
-
-    // GPIOB->GPRCM.RSTCTL = (GPIO_RSTCTL_KEY_UNLOCK_W |
-    //                         GPIO_RSTCTL_RESETSTKYCLR_CLR |
-    //                         GPIO_RSTCTL_RESETASSERT_ASSERT);
-    // GPIOB->GPRCM.PWREN  = (GPIO_PWREN_KEY_UNLOCK_W |
-    //                         GPIO_PWREN_ENABLE_ENABLE);
-    // delay_cycles(POWER_STARTUP_DELAY);
 }
 
-/* ---- Launcher constants ---- */
-
-#define MAX_GAMES      16
-#define VISIBLE_ROWS   10   /* game rows visible at once              */
-#define ROW_H          18   /* pixels per game list row               */
-#define LIST_Y0        18   /* y of first game row                    */
-#define FOOTER_Y       (LIST_Y0 + VISIBLE_ROWS * ROW_H + 2)
-#define TITLE_BG       0x0010u   /* very dark blue                    */
-#define SEL_BG         0x000Fu   /* dark blue highlight                */
-#define NORMAL_BG      COLOR_BLACK
-#define TITLE_FG       COLOR_YELLOW
-#define NORMAL_FG      COLOR_WHITE
-#define SEL_FG         COLOR_WHITE
-#define FOOTER_FG      0x7BEFu   /* mid-grey                          */
-
-/* ---- Static allocation ---- */
+#define MAX_GAMES     16
+#define VISIBLE_ROWS  10
+#define ROW_H         18
+#define LIST_Y0       18
+#define FOOTER_Y      (LIST_Y0 + VISIBLE_ROWS * ROW_H + 2)
+#define TITLE_BG      0x0010u
+#define SEL_BG        0x000Fu
+#define NORMAL_BG     COLOR_BLACK
+#define TITLE_FG      COLOR_YELLOW
+#define NORMAL_FG     COLOR_WHITE
+#define SEL_FG        COLOR_WHITE
+#define FOOTER_FG     0x7BEFu
 
 static vm_t vm;
 
 #ifndef DEBUG_ROM
 
-static fat32_file_t  game_list[MAX_GAMES];
-static int           game_count;
+static fat32_file_t game_list[MAX_GAMES];
+static int          game_count;
 
 static bool flash_write_cb(uint32_t offset, const uint8_t *data,
                            uint32_t len, void *ctx) {
     (void)ctx;
     return flash_rom_write_chunk(offset, data, len);
 }
-
-/* ---- Launcher UI -------------------------------------------------------- */
 
 static void draw_title(void) {
     TFTFillRect(0, 0, SCREEN_W, LIST_Y0 - 1, TITLE_BG);
@@ -172,21 +135,15 @@ static void draw_row(int row_idx, int game_idx, int selected) {
     uint16_t fg = (game_idx == selected) ? SEL_FG : NORMAL_FG;
 
     TFTFillRect(0, y, SCREEN_W, ROW_H, bg);
-
-    /* Selection cursor bar on the left */
-    if (game_idx == selected) {
+    if (game_idx == selected)
         TFTFillRect(0, y + 1, 3, ROW_H - 2, COLOR_CYAN);
-    }
-
-    if (game_idx < game_count) {
+    if (game_idx < game_count)
         TFTDrawString(8, y + 5, game_list[game_idx].name, fg, bg);
-    }
 }
 
 static void draw_all_rows(int scroll, int selected) {
-    for (int i = 0; i < VISIBLE_ROWS; i++) {
+    for (int i = 0; i < VISIBLE_ROWS; i++)
         draw_row(i, scroll + i, selected);
-    }
 }
 
 static void show_message(const char *line1, const char *line2, uint16_t color) {
@@ -195,24 +152,18 @@ static void show_message(const char *line1, const char *line2, uint16_t color) {
     if (line2) TFTDrawString(10, 116, line2, FOOTER_FG, COLOR_BLACK);
 }
 
-/*
- * Block until an SD card is present and successfully initialised.
- * Handles: no card, bad card, card swapped after failure.
- */
 static void wait_for_sd(void) {
     for (;;) {
-        /* Wait for a card to be physically present. */
         if (!sd_card_present()) {
             show_message("Insert SD card", "to continue.", COLOR_ORANGE);
             while (!sd_card_present()) {}
-            delay_cycles(32000u * 200u); /* 200 ms debounce */
+            delay_cycles(32000u * 200u);
         }
 
         show_message("Initialising SD card...", NULL, NORMAL_FG);
 
         if (!sd_init()) {
             show_message("SD card init failed.", "Try reseating the card.", COLOR_RED);
-            /* Wait for card removal so the user can reseat it. */
             while (sd_card_present()) {}
             continue;
         }
@@ -223,13 +174,11 @@ static void wait_for_sd(void) {
             continue;
         }
 
-        return; /* SD is ready */
+        return;
     }
 }
 
 #endif /* !DEBUG_ROM */
-
-/* ---- Main --------------------------------------------------------------- */
 
 int main(void) {
     InitializeGpio();
@@ -240,12 +189,10 @@ int main(void) {
     buttons_init();
 
 #ifndef DEBUG_ROM
-    sd_cd_init(); /* must precede any sd_card_present() call */
+    sd_cd_init();
 #endif
 
 #ifdef DEBUG_ROM
-    /* Debug mode: bake rom_data.h into the flash slot and run from there.
-       This exercises the full erase→program→execute path without an SD card. */
     TFTFillScreen(COLOR_BLACK);
     TFTDrawString(10, 100, "DEBUG ROM MODE", COLOR_YELLOW, COLOR_BLACK);
     TFTDrawString(10, 112, rom_data_name, FOOTER_FG, COLOR_BLACK);
@@ -272,17 +219,14 @@ int main(void) {
         TFTScrollDefine(0, 320, 0);
         TFTScrollSet(0);
     }
-#else  /* !DEBUG_ROM — normal SD card launcher */
+
+#else
 
     wait_for_sd();
 
-    /* Main launcher loop: re-scan the card each time we return from a game,
-       in case the user swapped cards. */
     for (;;) {
-        /* Scan root directory for .ROM files. */
         game_count = fat32_find_files("ROM", game_list, MAX_GAMES);
 
-        /* Draw the launcher screen. */
         TFTFillScreen(COLOR_BLACK);
         draw_title();
         draw_footer();
@@ -292,7 +236,6 @@ int main(void) {
 
         if (game_count == 0) {
             TFTDrawString(8, LIST_Y0 + 10, "No .ROM files found on SD card.", COLOR_RED, COLOR_BLACK);
-            /* Wait for user to swap card and press A. */
             uint32_t prev = hw_buttons_read();
             while (1) {
                 uint32_t btns = hw_buttons_read();
@@ -304,11 +247,9 @@ int main(void) {
 
         draw_all_rows(scroll, selected);
 
-        /* Menu navigation loop. */
         uint32_t prev_btns = hw_buttons_read();
 
         while (1) {
-            /* Card removed while browsing — re-init before rescanning. */
             if (!sd_card_present()) {
                 wait_for_sd();
                 break;
@@ -337,9 +278,8 @@ int main(void) {
                 }
             }
 
-            if (moved) {
+            if (moved)
                 draw_all_rows(scroll, selected);
-            }
 
             if (pressed & BTN_MASK_A) {
                 show_message("Loading...", game_list[selected].name, NORMAL_FG);
@@ -350,14 +290,12 @@ int main(void) {
                     break;
                 }
 
-                /* Erase only as many 1 KB sectors as the ROM needs. */
                 if (!flash_rom_erase(game_list[selected].size)) {
                     show_message("Flash error.", "Erase failed.", COLOR_RED);
                     delay_cycles(32000u * 2000u);
                     break;
                 }
 
-                /* Stream the ROM from SD directly into the flash slot. */
                 uint32_t bytes = fat32_read_file_stream(
                     &game_list[selected], flash_write_cb, NULL);
 
@@ -371,7 +309,6 @@ int main(void) {
                     break;
                 }
 
-                /* Point the VM at the ROM now resident in flash. */
                 if (!vm_load_rom(&vm, (const uint8_t *)ROM_FLASH_ADDR, bytes)) {
                     show_message("Bad ROM file.", game_list[selected].name, COLOR_RED);
                     delay_cycles(32000u * 2000u);
@@ -388,5 +325,5 @@ int main(void) {
         }
     }
 
-#endif /* DEBUG_ROM */
+#endif
 }

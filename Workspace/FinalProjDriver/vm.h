@@ -10,10 +10,8 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef int32_t  i32;
 
-/* ---- ROM format ---- */
-
 #define ROM_VERSION_MAJOR 1
-#define ROM_GLOBAL_OFFSET 0x1000   /* globals live at this byte address in vm->memory */
+#define ROM_GLOBAL_OFFSET 0x1000  /* globals base address in vm->memory */
 
 #define SECTION_TYPE_CODE 1
 #define SECTION_TYPE_DATA 5
@@ -41,8 +39,7 @@ typedef struct {
     u8  reserved[8];
 } rom_section_entry_t;
 
-/* ---- Opcode table (must match compiler's rom.h exactly) ---- */
-
+/* must match compiler's rom.h exactly */
 typedef enum {
     OPCODE_PUSH_CONST   = 0,
     OPCODE_POP          = 1,
@@ -85,13 +82,9 @@ typedef enum {
     OPCODE_COUNT   = 38,
 } opcode_t;
 
-/* ---- VM sizing (tuned for 32 KB SRAM) ---- */
-
-#define VM_STACK_SIZE   512    /* u32 slots  = 2 KB  */
-#define VM_MAX_FRAMES    64    /* call depth = 512 B */
-#define VM_MEMORY_SIZE  12288  /* flat RAM   = 12 KB (reduced to leave room for ROM buffer) */
-
-/* ---- VM structs ---- */
+#define VM_STACK_SIZE   512
+#define VM_MAX_FRAMES    64
+#define VM_MEMORY_SIZE  12288
 
 typedef struct {
     u32 return_ip;
@@ -122,29 +115,19 @@ typedef struct vm_t {
     vm_call_frame_t call_frames[VM_MAX_FRAMES];
     u32  call_depth;
 
-    const u8 *code;   /* points into ROM in flash — not owned */
+    const u8 *code;
     u32  code_size;
 
     u8   memory[VM_MEMORY_SIZE];
 
     i32  exit_code;
 
-    /* Called by OPCODE_SYSCALL.  Args at stack[frame_base + i].
-       Push a return value onto stack[sp++] before returning if non-void. */
+    /* syscall args at stack[frame_base + i]; push return value to stack[sp++] if non-void */
     void (*syscall_handler)(struct vm_t *vm, u8 id);
 } vm_t;
 
-/* ---- API ---- */
-
-/* Point vm at a code buffer and zero memory. */
 void        vm_init(vm_t *vm, const u8 *code, u32 code_size, u32 entry_point);
-
-/* Parse a ROM binary stored in flash (or any const byte array).
-   Validates the header and loads any DATA sections into vm->memory.
-   Returns true on success, false if the ROM is invalid. */
 bool        vm_load_rom(vm_t *vm, const u8 *rom_data, u32 rom_size);
-
-/* Run until HALT or an error. */
 vm_result_t vm_run(vm_t *vm);
 
 #endif /* _VM_H */

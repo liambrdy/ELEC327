@@ -1,15 +1,11 @@
 #include "vm.h"
 
-/* ---- Init ---- */
-
 void vm_init(vm_t *vm, const u8 *code, u32 code_size, u32 entry_point) {
     memset(vm, 0, sizeof(vm_t));
     vm->code      = code;
     vm->code_size = code_size;
     vm->ip        = entry_point;
 }
-
-/* ---- ROM loader ---- */
 
 bool vm_load_rom(vm_t *vm, const u8 *rom_data, u32 rom_size) {
     if (!rom_data || rom_size < sizeof(rom_header_t))
@@ -26,9 +22,9 @@ bool vm_load_rom(vm_t *vm, const u8 *rom_data, u32 rom_size) {
 
     memset(vm, 0, sizeof(vm_t));
 
-    const u8  *code_bytes = 0;
-    u32        code_size  = 0;
-    u32        sec_off    = hdr->section_table_off;
+    const u8 *code_bytes = 0;
+    u32       code_size  = 0;
+    u32       sec_off    = hdr->section_table_off;
 
     for (u32 i = 0; i < hdr->section_count; i++) {
         if (sec_off + sizeof(rom_section_entry_t) > rom_size)
@@ -42,7 +38,6 @@ bool vm_load_rom(vm_t *vm, const u8 *rom_data, u32 rom_size) {
                 return false;
             code_bytes = rom_data + sec->file_offset;
             code_size  = sec->file_size;
-
         } else if (sec->type == SECTION_TYPE_DATA) {
             if (sec->file_offset + sec->file_size > rom_size)
                 return false;
@@ -59,13 +54,11 @@ bool vm_load_rom(vm_t *vm, const u8 *rom_data, u32 rom_size) {
     if (!code_bytes)
         return false;
 
-    vm->code       = code_bytes;
-    vm->code_size  = code_size;
-    vm->ip         = hdr->entry_point;
+    vm->code      = code_bytes;
+    vm->code_size = code_size;
+    vm->ip        = hdr->entry_point;
     return true;
 }
-
-/* ---- Fetch helpers ---- */
 
 static inline u8 fetch_u8(vm_t *vm) {
     return vm->code[vm->ip++];
@@ -96,8 +89,6 @@ static inline u32 fetch_u32(vm_t *vm) {
     (dst) = vm->stack[--vm->sp]; \
 } while (0)
 
-/* ---- Main interpreter loop ---- */
-
 vm_result_t vm_run(vm_t *vm) {
     while (!vm->halted) {
         if (vm->ip >= vm->code_size)
@@ -107,7 +98,6 @@ vm_result_t vm_run(vm_t *vm) {
 
         switch (op) {
 
-            /* ---- Stack ---- */
             case OPCODE_PUSH_CONST: {
                 u32 val = fetch_u32(vm);
                 VM_PUSH(val);
@@ -126,13 +116,13 @@ vm_result_t vm_run(vm_t *vm) {
 
             case OPCODE_SWAP: {
                 if (vm->sp < 2) return VM_ERR_STACK_UNDERFLOW;
-                u32 tmp              = vm->stack[vm->sp - 1];
-                vm->stack[vm->sp-1]  = vm->stack[vm->sp - 2];
-                vm->stack[vm->sp-2]  = tmp;
+                u32 tmp             = vm->stack[vm->sp - 1];
+                vm->stack[vm->sp-1] = vm->stack[vm->sp - 2];
+                vm->stack[vm->sp-2] = tmp;
             } break;
 
             case OPCODE_ROT3: {
-                /* (a, b, c) → (c, a, b)  — c (top) sinks to third slot */
+                /* (a, b, c) → (c, a, b) */
                 if (vm->sp < 3) return VM_ERR_STACK_UNDERFLOW;
                 u32 c = vm->stack[vm->sp - 1];
                 u32 b = vm->stack[vm->sp - 2];
@@ -142,7 +132,6 @@ vm_result_t vm_run(vm_t *vm) {
                 vm->stack[vm->sp - 1] = b;
             } break;
 
-            /* ---- Locals ---- */
             case OPCODE_LOAD_LOCAL: {
                 u16 slot = fetch_u16(vm);
                 u32 idx  = vm->frame_base + slot;
@@ -160,7 +149,6 @@ vm_result_t vm_run(vm_t *vm) {
                 if (vm->sp <= idx) vm->sp = idx + 1;
             } break;
 
-            /* ---- Globals ---- */
             case OPCODE_LOAD_GLOBAL: {
                 u32 addr = fetch_u32(vm);
                 if (addr + 4 > VM_MEMORY_SIZE) return VM_ERR_BAD_MEMORY;
@@ -182,7 +170,6 @@ vm_result_t vm_run(vm_t *vm) {
                 vm->memory[addr+3] = (u8)(val >> 24);
             } break;
 
-            /* ---- Indirect ---- */
             case OPCODE_LOAD_INDIRECT: {
                 u8 size = fetch_u8(vm);
                 u32 addr;
@@ -210,7 +197,6 @@ vm_result_t vm_run(vm_t *vm) {
                 VM_PUSH(addr + off);
             } break;
 
-            /* ---- Arithmetic ---- */
             case OPCODE_ADD: { u32 b; VM_POP(b); u32 a; VM_POP(a); VM_PUSH(a + b); } break;
             case OPCODE_SUB: { u32 b; VM_POP(b); u32 a; VM_POP(a); VM_PUSH(a - b); } break;
             case OPCODE_MUL: { u32 b; VM_POP(b); u32 a; VM_POP(a); VM_PUSH(a * b); } break;
@@ -227,27 +213,23 @@ vm_result_t vm_run(vm_t *vm) {
                 VM_PUSH((u32)((i32)a % (i32)b));
             } break;
 
-            /* ---- Bitwise ---- */
             case OPCODE_AND: { u32 b; VM_POP(b); u32 a; VM_POP(a); VM_PUSH(a & b); } break;
             case OPCODE_OR:  { u32 b; VM_POP(b); u32 a; VM_POP(a); VM_PUSH(a | b); } break;
             case OPCODE_XOR: { u32 b; VM_POP(b); u32 a; VM_POP(a); VM_PUSH(a ^ b); } break;
             case OPCODE_SHL: { u32 b; VM_POP(b); u32 a; VM_POP(a); VM_PUSH(a << (b & 31)); } break;
             case OPCODE_SHR: { u32 b; VM_POP(b); u32 a; VM_POP(a); VM_PUSH(a >> (b & 31)); } break;
 
-            /* ---- Unary ---- */
             case OPCODE_NEG:       { u32 a; VM_POP(a); VM_PUSH((u32)(-(i32)a));    } break;
-            case OPCODE_NOT:       { u32 a; VM_POP(a); VM_PUSH(~a);                 } break;
+            case OPCODE_NOT:       { u32 a; VM_POP(a); VM_PUSH(~a);                } break;
             case OPCODE_LOGIC_NOT: { u32 a; VM_POP(a); VM_PUSH(a == 0 ? 1u : 0u); } break;
 
-            /* ---- Comparisons (signed) ---- */
-            case OPCODE_EQ:  { u32 b; VM_POP(b); u32 a; VM_POP(a); VM_PUSH(a == b             ? 1u:0u); } break;
-            case OPCODE_NEQ: { u32 b; VM_POP(b); u32 a; VM_POP(a); VM_PUSH(a != b             ? 1u:0u); } break;
+            case OPCODE_EQ:  { u32 b; VM_POP(b); u32 a; VM_POP(a); VM_PUSH(a == b            ? 1u:0u); } break;
+            case OPCODE_NEQ: { u32 b; VM_POP(b); u32 a; VM_POP(a); VM_PUSH(a != b            ? 1u:0u); } break;
             case OPCODE_LT:  { u32 b; VM_POP(b); u32 a; VM_POP(a); VM_PUSH((i32)a <  (i32)b  ? 1u:0u); } break;
             case OPCODE_LTE: { u32 b; VM_POP(b); u32 a; VM_POP(a); VM_PUSH((i32)a <= (i32)b  ? 1u:0u); } break;
             case OPCODE_GT:  { u32 b; VM_POP(b); u32 a; VM_POP(a); VM_PUSH((i32)a >  (i32)b  ? 1u:0u); } break;
             case OPCODE_GTE: { u32 b; VM_POP(b); u32 a; VM_POP(a); VM_PUSH((i32)a >= (i32)b  ? 1u:0u); } break;
 
-            /* ---- Control flow ---- */
             case OPCODE_JMP: {
                 vm->ip = fetch_u32(vm);
             } break;
@@ -264,7 +246,6 @@ vm_result_t vm_run(vm_t *vm) {
                 if (cond == 0) vm->ip = target;
             } break;
 
-            /* ---- Functions ---- */
             case OPCODE_CALL: {
                 u32 target = fetch_u32(vm);
                 u8  argc   = fetch_u8(vm);
@@ -293,12 +274,10 @@ vm_result_t vm_run(vm_t *vm) {
                 }
             } break;
 
-            /* ---- Halt ---- */
             case OPCODE_HALT: {
                 vm->halted = true;
             } break;
 
-            /* ---- Host syscall ---- */
             case OPCODE_SYSCALL: {
                 u8 id = fetch_u8(vm);
                 if (vm->syscall_handler)
