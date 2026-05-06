@@ -195,7 +195,10 @@ int main() {
     while (1) {
         int btns = buttons_read();
         int a_pressed = (btns & BTN_A) && !(prev_btns & BTN_A);
+        int b_pressed = (btns & BTN_B);
         prev_btns = btns;
+
+        if (b_pressed) return 0;
 
         if (game_state == STATE_TITLE) {
             if (a_pressed) {

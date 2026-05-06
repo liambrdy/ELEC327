@@ -4,15 +4,15 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define SD_CS_PINCM   IOMUX_PINCM43
-#define SD_CS_PF      IOMUX_PINCM43_PF_GPIOB_DIO17
-#define SD_CS_PORT    GPIOB
-#define SD_CS_PIN     (1UL << 17)
+#define SD_CS_PINCM   IOMUX_PINCM36
+#define SD_CS_PF      IOMUX_PINCM36_PF_GPIOA_DIO14
+#define SD_CS_PORT    GPIOA
+#define SD_CS_PIN     (1UL << 14)
 
-#define SD_CD_PINCM       IOMUX_PINCM32
-#define SD_CD_PF          IOMUX_PINCM32_PF_GPIOB_DIO15
-#define SD_CD_PORT        GPIOB
-#define SD_CD_PIN         (1UL << 15)
+#define SD_CD_PINCM       IOMUX_PINCM38
+#define SD_CD_PF          IOMUX_PINCM38_PF_GPIOA_DIO16
+#define SD_CD_PORT        GPIOA
+#define SD_CD_PIN         (1UL << 16)
 #define SD_CD_ACTIVE_LOW  0
 
 void    sd_cd_init(void);

@@ -3,20 +3,20 @@
 #include <ti/devices/msp/msp.h>
 
 static uint8_t spi_byte(uint8_t b) {
-    while (!(SPI1->STAT & SPI_STAT_TNF_MASK)) {}
-    SPI1->TXDATA = b;
-    while (SPI1->STAT & SPI_STAT_RFE_MASK) {}
-    return (uint8_t)(SPI1->RXDATA & 0xFF);
+    while (!(SPI0->STAT & SPI_STAT_TNF_MASK)) {}
+    SPI0->TXDATA = b;
+    while (SPI0->STAT & SPI_STAT_RFE_MASK) {}
+    return (uint8_t)(SPI0->RXDATA & 0xFF);
 }
 
 static void sd_cs_low(void)  { SD_CS_PORT->DOUTCLR31_0 = SD_CS_PIN; }
 static void sd_cs_high(void) { SD_CS_PORT->DOUTSET31_0 = SD_CS_PIN; }
 
 static void spi_set_clkctl(uint32_t clkctl) {
-    while (SPI1->STAT & SPI_STAT_BUSY_MASK) {}
-    SPI1->CTL1 &= ~SPI_CTL1_ENABLE_MASK;
-    SPI1->CLKCTL = clkctl;
-    SPI1->CTL1 |= SPI_CTL1_ENABLE_ENABLE;
+    while (SPI0->STAT & SPI_STAT_BUSY_MASK) {}
+    SPI0->CTL1 &= ~SPI_CTL1_ENABLE_MASK;
+    SPI0->CLKCTL = clkctl;
+    SPI0->CTL1 |= SPI_CTL1_ENABLE_ENABLE;
 }
 
 /* Poll up to 64 bytes for a non-0xFF response. */

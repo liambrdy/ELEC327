@@ -1,5 +1,5 @@
 
-#define DEBUG_ROM
+// #define DEBUG_ROM
 
 #include <ti/devices/msp/msp.h>
 #include "tft.h"

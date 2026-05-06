@@ -36,3 +36,4 @@ build/
 .jxbrowser.userdata/
 
 *.rom
+*.lck
